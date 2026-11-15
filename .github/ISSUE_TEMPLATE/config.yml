@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vulnerabilidades de seguridad
+    url: https://github.com/yemsy26/Paradoja-Infinita/security/advisories/new
+    about: Reporta vulnerabilidades de forma privada, no en un issue público.

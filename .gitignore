@@ -1,0 +1,17 @@
+# Entorno y caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+
+# Salida generada (videos, metadata, archivos intermedios)
+output/
+
+# Editores / sistema
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
