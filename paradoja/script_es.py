@@ -35,7 +35,7 @@ def build_script(scene: Scene, tl: Timeline) -> list:
             segs.append(Segment(sec - 1.0, f"Llevas {TENS[sec]} segundos mirando."))
             if sec + 4.5 < D - 8:
                 segs.append(Segment(sec + 4.5, fillers[i % len(fillers)]))
-        segs.append(Segment(D - 3.0, rng.choice(T.LOOP_OUTRO)))
+        segs.append(Segment(D - 3.3, rng.choice(T.LOOP_OUTRO)))
         return sorted(segs, key=lambda s: s.start)
 
     segs = [Segment(a.start + t, text) for a in scene.acts for t, text in a.voice]

@@ -204,7 +204,7 @@ registra en `output/historial.json`, que usa la elección inteligente y la opci�
 | Figura | círculo, triángulo, rombo, hexágono, estrella, pentágono, cuadrado |
 | Layout | 4 tamaños de rejilla, normal u hexagonal, 4 estilos de movimiento y de fondo, giro |
 | Velocidad | 0,5×–1,9× en fondo, figuras y gancho |
-| Estructura | 4-7 actos de duración variable que rellenan los 63 s; cierre de 3/3,5 s; en el video mixto, qué retos y en qué orden |
+| Estructura | 4-7 actos de duración variable que rellenan los 63 s; cierre de 3,5/4 s; en el video mixto, qué retos y en qué orden |
 | Guion | frases y género gramatical adaptados a la figura y al reto |
 
 ## Rendimiento y GPU

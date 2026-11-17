@@ -19,6 +19,7 @@ Style: Sub,Arial Black,100,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,1
 Style: Hud,Arial Black,62,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,5,2,7,0,0,0,1
 Style: Title,Arial Black,92,&H00{hl},&H00{hl},&H00000000,&H80000000,0,0,0,0,100,100,2,0,1,7,3,8,40,40,0,1
 Style: Big,Arial Black,120,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,10,3,5,40,40,0,1
+Style: Cap,Arial Black,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,6,2,5,40,40,0,1
 Style: Cta,Arial Black,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,8,3,5,40,40,0,1
 
 [Events]
@@ -101,11 +102,11 @@ def build_ass(path: Path, clips: list, tl: Timeline, spec: VideoSpec) -> Path:
                 for k in range(min(5, int(a.search)), 0, -1):  # el numero k dura mientras faltan k segundos
                     t0 = a.start + a.search - k
                     ev.append(_line(t0, t0 + 1, "Hud",
-                                    r"{\an9\fs130\c&H" + hl + r"&\fscx70\fscy70\t(0,120,\fscx100\fscy100)}" + str(k),
-                                    (spec.width - 70, 80)))
+                                    r"{\an9\fs110\c&H" + hl + r"&\fscx70\fscy70\t(0,120,\fscx100\fscy100)}" + str(k),
+                                    (spec.width - 50, 30)))
             for t0, t1, text, size, bgr, y in a.items:           # texto del reto (calculo, secuencia, palabras...)
                 color = r"\c&H" + bgr + "&" if bgr else ""
-                ev.append(_line(a.start + t0, a.start + t1, "Big",
+                ev.append(_line(a.start + t0, a.start + t1, "Cap" if y < 300 else "Big",
                                 "{\\fs" + str(size) + color + "\\fad(120,0)}" + text, (cx, y)))
 
     path.write_text(_HEADER.format(w=spec.width, h=spec.height, hl=hl) + "\n".join(ev) + "\n", encoding="utf-8")

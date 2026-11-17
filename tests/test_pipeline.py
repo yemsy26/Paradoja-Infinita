@@ -56,7 +56,7 @@ def test_acts_are_contiguous_and_fill_duration(mode, seed):
     for a, b in zip(sc.acts, sc.acts[1:]):
         assert a.end == pytest.approx(b.start)
     assert sc.acts[-1].end + sc.outro_len == pytest.approx(SPEC.duration)
-    assert all(a.search >= 4.7 and a.length - a.search == pytest.approx(3.0) for a in sc.acts)
+    assert all(a.search >= 4.7 and a.length - a.search == pytest.approx(TYPES[a.type].reveal) for a in sc.acts)
     assert tl.outro_start == pytest.approx(sc.acts[-1].end)
 
 
@@ -132,7 +132,7 @@ def test_count_answer_matches_the_items_on_screen(seed):
             match &= np.abs(pb[:, 2] - shape_f) < 0.5
         if hue_f >= 0:
             match &= np.abs(pb[:, 3] - hue_f) < 0.02
-        assert match.sum() == int(a.answer.split()[0]) and 14 <= a.n <= 40
+        assert match.sum() == int(a.answer.split()[0]) and 10 <= a.n <= 18
         assert any(abs(h - c[2]) < 0.02 for h in [hue_f] for c in NAMED_COLORS) or hue_f < 0
 
 
@@ -240,3 +240,64 @@ def test_shader_digits_and_shapes_are_flipped_for_y_down():
     num = src[src.index("float numSD"): src.index("float symbolSD")]
     assert "q.y = -q.y" in num
     assert "p.y = -p.y" in src[src.index("float shapeSDi"): src.index("float shapeSD(vec2")]
+
+
+# --------------------------------------------------------------------------- v1.1.1: calidad de los retos
+@pytest.mark.parametrize("seed", SEEDS)
+def test_count_frozen_figures_are_countable(seed):
+    """Al detenerse las figuras: las que se cuentan estan fuera de la franja de subtitulos y nada se solapa."""
+    sc, _ = _make("count", seed)
+    for a in sc.acts:
+        pa = np.frombuffer(a.arrays["u_pa"], "f4").reshape(-1, 4)
+        pb = np.frombuffer(a.arrays["u_pb"], "f4").reshape(-1, 4)
+        spd = 0.35 + 0.15 * (1.0 - a.delta)
+        pos = _swarm_positions(pa, pb, a.n, (a.search - 2.0) * spd)
+        shape_f, hue_f = a.q
+        match = np.ones(a.n, bool)
+        if shape_f >= 0:
+            match &= np.abs(pb[:a.n, 2] - shape_f) < 0.5
+        if hue_f >= 0:
+            match &= np.abs(pb[:a.n, 3] - hue_f) < 0.02
+        assert (np.abs(pos[match, 1]) > 0.17).all() and (np.abs(pos[:, 1]) > 0.09).all()
+        d = np.linalg.norm(pos[:, None] - pos[None], axis=2) + np.eye(a.n) * 9
+        assert d.min() > 0.085 and d[match].min() > 0.12
+
+
+@pytest.mark.parametrize("mode", ACT_MODES)
+def test_every_visual_challenge_pins_its_question_and_answer(mode):
+    from paradoja.acts import CAPTION_TYPES
+    sc, _ = _make(mode, 42)
+    for a in sc.acts:
+        if a.type in CAPTION_TYPES:
+            top = [it for it in a.items if it[5] < 300]
+            assert top and top[0][0] < 0.5 and top[0][1] == pytest.approx(a.search)   # pregunta durante la busqueda
+            assert any(it[0] == pytest.approx(a.search) for it in top)               # respuesta al revelar
+            assert all(it[1] <= a.length for it in top)
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_ishihara_keeps_a_readable_contrast(seed):
+    sc, _ = _make("ishihara", seed)
+    assert all(a.delta >= 0.7 for a in sc.acts)
+
+
+@pytest.mark.parametrize("mode", ACT_MODES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_spoken_lines_fit_before_the_next_one(seed, mode):
+    """La voz de cada linea debe poder terminar antes de la siguiente: hueco minimo segun el largo del texto."""
+    sc, tl = _make(mode, seed)
+    segs = build_script(sc, tl)
+    for cur, nxt in zip(segs, segs[1:]):
+        words = len(cur.text.split())
+        assert nxt.start - cur.start >= 0.25 + 0.30 * words * 0.62, (cur.text, nxt.start - cur.start)
+
+
+@pytest.mark.parametrize("mode", ACT_MODES)
+def test_pinned_captions_are_single_line_and_fit(mode):
+    """El HUD y la barra de tiempo rodean la pregunta fija: una sola linea y que quepa en el ancho."""
+    for seed in SEEDS:
+        sc, _ = _make(mode, seed)
+        for a in sc.acts:
+            for t0, t1, text, size, _c, y in a.items:
+                if y < 300:
+                    assert chr(92) + "N" not in text and size >= 34 and len(text) * 0.62 * size <= 1020, (text, size)

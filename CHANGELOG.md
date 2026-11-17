@@ -3,6 +3,27 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.1.1] - 2026-11-17
+
+Revisión de calidad de cada reto en el modo aleatorio.
+
+### Cambiado
+- **Pregunta siempre visible**: los retos visuales muestran su pregunta fija arriba durante la búsqueda y la respuesta
+  corta durante la revelación (antes solo se oía).
+- **Tiempos de revelación por tipo**: los retos con texto (cálculo, secuencia, acertijo, colores, conteo) dejan 3,5 s
+  para leer la respuesta; cálculo y secuencia dan más tiempo de búsqueda. Cierre de 3,5–4 s.
+- **Conteo rediseñado**: de 10 a 18 figuras (antes hasta 40), se mueven más despacio, se detienen 2 s antes de revelar
+  y las que hay que contar quedan fuera de la franja de subtítulos y separadas entre sí.
+- **Dificultad con suelo legible**: la dificultad ya no llega a hacer imposible un reto (Ishihara con contraste
+  mínimo, memoria y «qué cambió» con cambios visibles; sin el cambio de «punto» casi invisible).
+- Ilusión Café Wall: mortero fino y desfase estable, para que se vea la inclinación en lugar de un tablero.
+- Narración: la cuenta atrás es «Tres, dos, uno.» y se omiten el gancho y las líneas intermedias cuando no caben,
+  de modo que ninguna frase se pisa con la siguiente; frases de cierre más cortas.
+- Cuenta atrás en la esquina, más pequeña, para no tapar el reto.
+
+### Corregido
+- El muestreo del conteo podía tardar varios segundos por video.
+
 ## [1.1.0] - 2026-11-16
 
 ### Añadido

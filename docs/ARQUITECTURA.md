@@ -24,8 +24,8 @@ semilla ──► scene.py ──► Scene (paleta, figura, actos, parámetros)
 ## Estructura temporal
 
 ```text
-| acto 1 | acto 2 | … | acto N | cierre 3-3,5 s |      (N = 4-7, duraciones variables)
-  └ búsqueda (largo − 3 s) ┘└ revelación 3 s ┘
+| acto 1 | acto 2 | … | acto N | cierre 3,5-4 s |      (N = 4-7, duraciones variables)
+  └ búsqueda (largo − R) ┘└ revelación R ┘      (R = `TypeInfo.reveal`: 3 s, o 3,5 s en los retos con texto)
 ```
 
 Un video es una lista de **actos** (`scene.Act`); cada acto es un reto de un tipo (`scene.TYPES`). Un video de tipo único
@@ -44,7 +44,7 @@ El modo `loop` no tiene actos: toda la animación es periódica con periodo `dur
 - `u_scene` selecciona el tipo de reto **del acto actual** (`TypeInfo.scene_id`); la rejilla (`u_grid`, `u_cell`, `u_hex`)
   también es por acto. `u_kind` es la variante dentro del tipo.
 - `u_pop` (0–1) escala/desvanece la escena al entrar y salir del acto; `u_reveal` (0–1) activa la revelación.
-- `u_actph` es el reloj de movimiento del acto: se congela al empezar la revelación (excepto en `swarm`, donde es la
+- `u_actph` es el reloj de movimiento del acto: se congela al empezar la revelación (en `count`, 2 s antes, para poder contar; excepto en `swarm`, donde es la
   integral de una velocidad con rampa y frenada, ver `scene.swarm_clock`).
 - Las figuras comparten SDF (`shapeSDi`) para que el vocabulario geométrico sea común a todos los modos.
 - Los textos nunca se dibujan en el shader (excepto las etiquetas numéricas de la revelación del conteo): van en ASS.

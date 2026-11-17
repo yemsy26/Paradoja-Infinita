@@ -22,6 +22,7 @@ class TypeInfo:
     category: str
     menu: str          # nombre en el menu
     desc: str
+    reveal: float = 3.0   # duracion de la revelacion (los retos con texto necesitan mas para leer la respuesta)
 
 
 TYPES = {t.name: t for t in (
@@ -32,13 +33,13 @@ TYPES = {t.name: t for t in (
     TypeInfo("contrast", 7, "CONTRASTE", 10.0, True, "Visual", "Contraste", "Cuál es más claro / ¿cambió el color?"),
     TypeInfo("sync", 3, "PAUSA", 11.0, True, "Reflejos", "Sincronización", "Pausa justo cuando la figura encaja"),
     TypeInfo("swarm", 5, "RONDA", 12.0, False, "Atención", "Seguimiento", "Sigue el punto rojo entre el caos"),
-    TypeInfo("count", 8, "CUENTA", 11.0, True, "Atención", "Conteo", "¿Cuántas figuras de este tipo hay?"),
+    TypeInfo("count", 8, "CUENTA", 12.0, True, "Atención", "Conteo", "¿Cuántas figuras de este tipo hay?", 3.5),
     TypeInfo("flicker", 9, "¿QUÉ CAMBIA?", 11.0, True, "Atención", "Qué cambió", "Detecta lo que cambia entre dos imágenes"),
     TypeInfo("memory", 9, "MEMORIA", 12.0, False, "Memoria", "Memoria", "Memoriza las figuras y encuentra el cambio"),
-    TypeInfo("stroop", 10, "COLORES", 9.0, False, "Mente", "Efecto Stroop", "Di el color de la tinta, no la palabra"),
-    TypeInfo("math", 10, "CÁLCULO", 8.5, True, "Mente", "Cálculo", "Operaciones con trampa de orden"),
-    TypeInfo("sequence", 10, "SECUENCIA", 8.5, True, "Mente", "Secuencia", "¿Qué número sigue?"),
-    TypeInfo("riddle", 10, "ACERTIJO", 12.0, False, "Mente", "Acertijo", "Acertijos y preguntas trampa"),
+    TypeInfo("stroop", 10, "COLORES", 9.5, False, "Mente", "Efecto Stroop", "Di el color de la tinta, no la palabra", 3.5),
+    TypeInfo("math", 10, "CÁLCULO", 11.0, True, "Mente", "Cálculo", "Operaciones con trampa de orden", 3.5),
+    TypeInfo("sequence", 10, "SECUENCIA", 11.0, True, "Mente", "Secuencia", "¿Qué número sigue?", 3.5),
+    TypeInfo("riddle", 10, "ACERTIJO", 12.5, False, "Mente", "Acertijo", "Acertijos y preguntas trampa", 3.5),
 )}
 # formatos de video: cada tipo por separado + bucle perfecto + mix de tipos distintos
 MODES = (*TYPES, "loop", "mix")
@@ -197,7 +198,7 @@ def build_scene(seed: int, mode: str, spec: VideoSpec) -> Scene:
     shape = rng.randrange(len(SHAPES))
     cols, rows, cell = rng.choice(LAYOUTS)
     hex_layout = rng.random() < 0.4
-    outro_len = rng.choice((3.0, 3.5))
+    outro_len = rng.choice((3.5, 4.0))
     hue_off = rng.randrange(len(pal.hues))
     hue_jit = rng.uniform(-0.02, 0.02)
 

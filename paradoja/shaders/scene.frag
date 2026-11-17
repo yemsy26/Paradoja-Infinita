@@ -20,6 +20,7 @@ uniform int   u_pass, u_sym, u_actshape, u_n;      // u_pass=1: pasada de profun
 uniform float u_tau, u_hl, u_flick;                // u_flick: 0 imagen A, 1 imagen B, 2 vacio
 uniform vec2  u_cnt;                               // conteo: filtro de figura (-1 = cualquiera), filtro de tono
 uniform vec2  u_me;                                // ojo magico: periodo (px), desplazamiento maximo (px)
+uniform float u_dot;                               // ojo magico: tamaño del punto (px)
 uniform vec4  u_pa[40], u_pb[40];                  // enjambre (40 = SWARM_MAX)
 uniform sampler2D u_phi, u_dep;                    // ojo magico: fase acumulada y mapa de profundidad
 out vec4 fragColor;
@@ -174,7 +175,7 @@ vec3 drawCell(vec3 col, vec2 id, vec2 f) {
             else if (u_kind == 1) sc *= 1.0 - 0.5 * u_delta;
             else if (u_kind == 2) val += 0.35 * u_delta;
             else if (u_kind == 3) dotOff = 0.30 * u_delta * vec2(cos(u_rnd.z * TAU), sin(u_rnd.z * TAU));
-            else if (u_kind == 4) ang += 1.2 * u_delta;
+            else if (u_kind == 4) ang += 0.8 * u_delta;
             else                  sc = 0.0;            // la figura desaparece
         }
     } else if (odd) {
@@ -249,16 +250,16 @@ vec3 illOuchi(vec2 p) {
 }
 
 vec3 illCafe(vec2 p) {
-    float h = 0.075 * (0.85 + 0.5 * u_actp.x);
+    float h = 0.09 * (0.85 + 0.4 * u_actp.x);
     float row = floor(p.y / h);
     float odd = mod(row, 2.0);
-    float shiftf = 0.5 * (0.8 + 0.4 * u_actp.y);
+    float shiftf = 0.5 * (0.9 + 0.2 * u_actp.y);
     float x = p.x + odd * h * shiftf + (odd * 2.0 - 1.0) * 0.03 * u_actph;
     float ck = edge(sin(x / h * PI));
     vec3 col = mix(u_tunb, u_tuna, ck);
     float fy = fract(p.y / h);
     float m = min(fy, 1.0 - fy) * h;
-    float wl = 0.0058 * (1.0 + 1.2 * u_reveal);
+    float wl = 0.0028 * (1.0 + 2.0 * u_reveal);     // mortero fino: asi funciona la ilusion
     float line = 1.0 - smoothstep(wl - 0.0006, wl + 0.0006, m);
     return mix(col, mix(mix(u_tunb, u_tuna, 0.5), u_accent, u_reveal), line);
 }
@@ -487,10 +488,10 @@ vec3 ishiScene(vec2 px) {
     float hn = hash21(bid + 7.7), vn = hash21(bid + 13.1);
     float vn2 = hash21(bid + floor(u_actph * 3.0) * 1.37);                 // ruido que se re-sortea 3x/s
     float hue = u_hue + (hn - 0.5) * 0.03;
-    float val = u_sv.y * 0.9 + (mix(vn, vn2, 0.5) - 0.5) * 0.40;
+    float val = u_sv.y * 0.9 + (mix(vn, vn2, 0.5) - 0.5) * 0.32;
     if (inside) {
-        hue += 0.10 * dEff;
-        if (mono) val += 0.30 * dEff;
+        hue += 0.14 * dEff;
+        if (mono) val += 0.35 * dEff;
     }
     vec3 gap = u_bg1 * 0.7;
     float aa = 0.05;
@@ -546,7 +547,7 @@ vec3 magicScene(vec2 px) {
     ivec2 ip = ivec2(px);
     float phi = texelFetch(u_phi, ip, 0).r;
     float dep = texelFetch(u_dep, ip, 0).r;
-    float dotpx = 5.0;
+    float dotpx = u_dot;
     float Np = u_me.x / dotpx;
     phi += u_actph * 0.03 * (u_actp.x > 0.5 ? 1.0 : -1.0);               // el patron fluye (no rompe la profundidad)
     float cx = floor(fract(phi) * Np);
@@ -613,7 +614,7 @@ vec3 contrastScene(vec2 px) {
 vec3 countScene(vec2 px) {
     vec2 p = (px - 0.5 * u_res) / u_res.x;
     vec3 col = background(px);
-    float s = u_actph * (0.5 + 0.25 * (1.0 - u_delta));
+    float s = u_actph * (0.35 + 0.15 * (1.0 - u_delta));
     bool mono = u_sv.x < 0.01;
     int k = 0;
     for (int i = 0; i < 40; i++) {

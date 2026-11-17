@@ -62,12 +62,8 @@ HOOK_SHORT = ("Casi nadie acierta.", "Solo el uno por ciento.", "Atento.", "¿Es
 MID = ("Mira bien.", "No parpadees.", "Concéntrate.", "Sin trampas.")
 REVEAL = ("Ahí estaba. ¿Lo viste?", "Ese era. ¿Acertaste?", "Mira dónde estaba. ¿Lo encontraste?")
 
-OUTRO = (
-    "¿Cuántos acertaste? Comenta tu puntaje.",
-    "Comenta cuántos acertaste. Sigue Paradoja Infinita.",
-    "Dime tu puntaje en los comentarios.",
-)
-LOOP_OUTRO = ("¿Cuántas veces lo repetiste? Coméntalo.", "Comenta cuántas veces lo viste. Sigue Paradoja Infinita.")
+OUTRO = ("Dime tu puntaje en los comentarios.", "¿Cuántos acertaste? Coméntalo.", "Comenta cuántos acertaste.")
+LOOP_OUTRO = ("¿Cuántas veces lo repetiste? Coméntalo.", "Comenta cuántas veces lo viste.")
 
 
 # --------------------------------------------------------------------------- anomalia
@@ -118,7 +114,7 @@ SYNC_MID = ("Prepárate.", "Atento.", "Ya casi.")
 ISHI_MID = ("Mira bien.", "Sin trampas.", "Atento.")
 MAGIC_MID = ("Paciencia.", "Relájate.", "Sin prisa.")
 CONTRAST_MID = ("Míralo bien.", "¿Seguro?", "Atento.")
-COUNT_MID = ("Sin perder la cuenta.", "Cuenta en silencio.", "No te distraigas.")
+COUNT_MID = ("Cuenta bien.", "Atento.", "Sin trampas.")
 FLICKER_MID = ("Mira bien.", "Algo cambia.", "Atento.")
 
 KIND_REVEAL = ("Cambió de color.", "Cambió de tamaño.", "Cambió de brillo.", "Se movió el punto.", "Giró.",

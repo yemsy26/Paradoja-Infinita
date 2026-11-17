@@ -22,6 +22,9 @@ def _flick(act, rt: float) -> int:
     return 0 if ph < 0.6 else 2 if ph < 0.85 else 1 if ph < 1.45 else 2
 
 
+MAGIC_DOT = 8.0   # px por punto del autoestereograma (mas grande = mas robusto a la compresion)
+
+
 class Timeline:
     def __init__(self, spec: VideoSpec, scene: Scene):
         self.spec, self.scene = spec, scene
@@ -46,6 +49,8 @@ class Timeline:
 
         actph = min(max(rt, 0.0), S)                  # reloj de movimiento: se congela al revelar
         tau, hl = 0.0, 0.0
+        if act.type == "count":                       # las figuras se detienen 2 s antes de revelar para poder contarlas
+            actph = min(max(rt, 0.0), S - 2.0)
         if act.type == "swarm":
             actph = swarm_clock(rt, S, act.q[0])
             hl = 1.0 - _ss(2.0, 2.6, rt)              # el rojo se desvanece a los 2 s
@@ -74,8 +79,9 @@ class Timeline:
             "u_flick": _flick(act, rt) if act.type in ("flicker", "memory") else 0,
         }
         if act.type == "magiceye":
-            period = (int(32 + act.q[0] * 12)) * 5.0   # px; puntos de 5 px (ver shader)
+            period = max(12, round((170 + 60 * act.q[0]) / MAGIC_DOT)) * MAGIC_DOT   # px (multiplo del punto)
             u["u_me"] = (period, period * (0.10 + 0.05 * act.q[1]))
+            u["u_dot"] = MAGIC_DOT
         if act.type == "count":
             u["u_cnt"] = act.q
         if act.arrays:
