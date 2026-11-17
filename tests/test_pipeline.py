@@ -1,11 +1,15 @@
-"""Pruebas de la logica pura (sin GPU, sin FFmpeg y sin red): escena, linea de tiempo, guion y metadata."""
+"""Pruebas de la logica pura (sin GPU, sin FFmpeg y sin red): escena, actos, guion, metadata y catalogo."""
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+from paradoja import catalog
 from paradoja.config import SUB_BAND, VideoSpec
 from paradoja.metadata import MODE_SLUG, video_slug, write_metadata
-from paradoja.scene import MODES, _swarm_positions, build_scene, swarm_clock
-from paradoja.script_es import build_script, num_es
+from paradoja.scene import MODES, TYPES, _swarm_positions, blocked_rows, build_scene, swarm_clock
+from paradoja.script_es import build_script
+from paradoja.texts_es import NAMED_COLORS, STROOP_COLORS, num_es
 from paradoja.timeline import Timeline
 
 SPEC = VideoSpec()
@@ -26,26 +30,47 @@ def test_spec_defaults_and_monetization_range():
             VideoSpec(duration=bad)
 
 
+def test_catalog_has_many_challenge_types():
+    assert len(TYPES) >= 14 and set(TYPES) | {"loop", "mix"} == set(MODES)
+
+
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("seed", SEEDS)
 def test_scene_is_deterministic(mode, seed):
     a, b = build_scene(seed, mode, SPEC), build_scene(seed, mode, SPEC)
     assert video_slug(a) == video_slug(b)
-    assert [(x.kind, x.sym, x.shape, x.hit, x.p) for x in a.acts] == [(x.kind, x.sym, x.shape, x.hit, x.p) for x in b.acts]
-
-
-@pytest.mark.parametrize("mode", MODES)
-def test_different_seeds_give_different_videos(mode):
-    sigs = {(s.palette.name, s.shape, s.hook_kind, s.cell, s.speed) for s in (build_scene(i, mode, SPEC) for i in range(40))}
-    assert len(sigs) > 10
+    assert [(x.type, x.answer, x.voice, x.items) for x in a.acts] == [(x.type, x.answer, x.voice, x.items) for x in b.acts]
 
 
 @pytest.mark.parametrize("mode", ACT_MODES)
-def test_act_structure_fills_duration(mode):
-    sc, tl = _make(mode, 7)
-    assert len(sc.acts) in (4, 5)
-    assert tl.search_len >= 7.3
-    assert tl.hook_len + len(sc.acts) * tl.act_len + sc.outro_len == pytest.approx(SPEC.duration)
+def test_different_seeds_give_different_content(mode):
+    sigs = {tuple(a.answer for a in build_scene(i, mode, SPEC).acts) for i in range(40)}
+    assert len(sigs) > 20
+
+
+@pytest.mark.parametrize("mode", ACT_MODES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_acts_are_contiguous_and_fill_duration(mode, seed):
+    sc, tl = _make(mode, seed)
+    assert sc.acts[0].start == 0.0
+    for a, b in zip(sc.acts, sc.acts[1:]):
+        assert a.end == pytest.approx(b.start)
+    assert sc.acts[-1].end + sc.outro_len == pytest.approx(SPEC.duration)
+    assert all(a.search >= 4.7 and a.length - a.search == pytest.approx(3.0) for a in sc.acts)
+    assert tl.outro_start == pytest.approx(sc.acts[-1].end)
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_mix_combines_distinct_types(seed):
+    sc, _ = _make("mix", seed)
+    types = [a.type for a in sc.acts]
+    assert 5 <= len(types) <= 7 and len(set(types)) == len(types)
+
+
+@pytest.mark.parametrize("mode", [m for m in TYPES])
+def test_single_type_videos_repeat_one_type(mode):
+    sc, _ = _make(mode, 7)
+    assert {a.type for a in sc.acts} == {mode} and 3 <= len(sc.acts) <= 8
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -53,7 +78,7 @@ def test_timeline_uniforms_are_well_formed(mode):
     _, tl = _make(mode, 5)
     for t in (0.0, 10.0, 31.5, 62.98):
         u = tl.uniforms(t)
-        assert 0.0 <= u["u_mix"] <= 1.0 and 0.0 <= u["u_pop"] <= 1.0
+        assert 0.0 <= u["u_mix"] <= 1.0 and 0.0 <= u["u_pop"] <= 1.0 and isinstance(u["u_scene"], int)
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -64,8 +89,7 @@ def test_sync_hit_is_frame_aligned_and_tau_zero(seed):
         assert a.hit == frame / SPEC.fps
         assert tl.uniforms(frame / SPEC.fps)["u_tau"] == 0.0
         assert tl.uniforms((frame - 1) / SPEC.fps)["u_tau"] != 0.0
-        rt = a.hit - tl.act_start(a.index)
-        assert tl.search_len - 4.5 - 1e-9 <= rt <= tl.search_len - 0.9 + 1e-9  # dentro de la cuenta atras visible
+        assert a.search - 4.5 - 1e-9 <= a.hit - a.start <= a.search - 0.9 + 1e-9  # dentro de la cuenta atras visible
 
 
 def test_swarm_clock_stops_before_reveal_and_is_monotonic():
@@ -81,33 +105,82 @@ def test_swarm_target_is_visible_when_swarm_stops(seed):
     for a in sc.acts:
         pa = np.frombuffer(a.arrays["u_pa"], "f4").reshape(-1, 4)
         pb = np.frombuffer(a.arrays["u_pb"], "f4").reshape(-1, 4)
-        pos = _swarm_positions(pa, pb, a.n, swarm_clock(tl.search_len, tl.search_len, a.q[0]))
-        assert abs(pos[0, 1]) > 0.1                              # fuera de la franja de subtitulos
-        assert np.linalg.norm(pos[1:] - pos[0], axis=1).min() > 0.06  # no tapada por otra particula
+        pos = _swarm_positions(pa, pb, a.n, swarm_clock(a.search, a.search, a.q[0]))
+        assert abs(pos[0, 1]) > 0.1
+        assert np.linalg.norm(pos[1:] - pos[0], axis=1).min() > 0.06
+
+
+@pytest.mark.parametrize("mode", ["anomaly", "flicker", "memory"])
+@pytest.mark.parametrize("seed", SEEDS)
+def test_grid_targets_avoid_subtitle_band(mode, seed):
+    sc, _ = _make(mode, seed)
+    for a in sc.acts:
+        cols, rows, cell, _hex = a.grid
+        top = (SPEC.height - rows * cell) / 2
+        y0, y1 = top + a.target[1] * cell, top + (a.target[1] + 1) * cell
+        assert not (y0 < SUB_BAND[1] and y1 > SUB_BAND[0]) and a.target[1] not in blocked_rows(rows, cell)
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_anomaly_targets_avoid_subtitle_band(seed):
-    sc, _ = _make("anomaly", seed)
-    top = (SPEC.height - sc.rows * sc.cell) / 2
+def test_count_answer_matches_the_items_on_screen(seed):
+    sc, _ = _make("count", seed)
     for a in sc.acts:
-        y0, y1 = top + a.target[1] * sc.cell, top + (a.target[1] + 1) * sc.cell
-        assert not (y0 < SUB_BAND[1] and y1 > SUB_BAND[0])
+        pb = np.frombuffer(a.arrays["u_pb"], "f4").reshape(-1, 4)[: a.n]
+        shape_f, hue_f = a.q
+        match = np.ones(a.n, bool)
+        if shape_f >= 0:
+            match &= np.abs(pb[:, 2] - shape_f) < 0.5
+        if hue_f >= 0:
+            match &= np.abs(pb[:, 3] - hue_f) < 0.02
+        assert match.sum() == int(a.answer.split()[0]) and 14 <= a.n <= 40
+        assert any(abs(h - c[2]) < 0.02 for h in [hue_f] for c in NAMED_COLORS) or hue_f < 0
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_math_answer_is_correct_and_has_a_trap(seed):
+    sc, _ = _make("math", seed)
+    for a in sc.acts:
+        expr, rest = a.answer.split(" = ")
+        value, trap = int(rest.split()[0]), int(rest.split("trampa: ")[1].rstrip(")"))
+        assert eval(expr.replace("×", "*")) == value and trap != value and value > 0
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_stroop_ink_never_matches_the_word(seed):
+    sc, _ = _make("stroop", seed)
+    names = {c[0] for c in STROOP_COLORS}
+    for a in sc.acts:
+        words = [it for it in a.items if it[3] == 170]
+        inks = a.answer.split(", ")
+        assert len(words) == len(inks) >= 3 and set(inks) <= names
+        assert all(w[2].lower() != ink for w, ink in zip(words, inks))
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_riddles_do_not_repeat_inside_a_video(seed):
+    sc, _ = _make("riddle", seed)
+    ids = [a.sym for a in sc.acts]
+    assert len(set(ids)) == len(ids)
 
 
 @pytest.mark.parametrize("mode", MODES)
-def test_script_fits_timeline(mode):
-    sc, tl = _make(mode, 11)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_script_fits_timeline(mode, seed):
+    sc, tl = _make(mode, seed)
     segs = build_script(sc, tl)
     starts = [s.start for s in segs]
-    assert starts == sorted(starts)
-    assert starts[0] < 1.0 and starts[-1] < SPEC.duration - 2.0
+    assert starts == sorted(starts) and starts[0] < 1.0 and starts[-1] < SPEC.duration - 2.0
     assert all(s.text.strip() for s in segs)
+    for a in sc.acts:
+        assert all(0 <= t < a.length - 0.1 for t, _ in a.voice)
+    if sc.mode != "loop":
+        assert segs[0].start < 1.0                       # el reto empieza de inmediato (sin gancho largo)
 
 
 def test_spanish_numbers():
-    assert [num_es(n) for n in (10, 21, 38, 90, 99)] == [
-        "diez", "veintiuno", "treinta y ocho", "noventa", "noventa y nueve"]
+    assert [num_es(n) for n in (0, 10, 21, 38, 90, 99, 100, 101, 250, 999)] == [
+        "cero", "diez", "veintiuno", "treinta y ocho", "noventa", "noventa y nueve", "cien", "ciento uno",
+        "doscientos cincuenta", "novecientos noventa y nueve"]
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -116,9 +189,54 @@ def test_slug_and_metadata_file(mode, tmp_path):
     slug = video_slug(sc)
     assert slug.startswith(MODE_SLUG[mode] + "_") and slug.endswith("_2024")
     assert slug == slug.lower() and " " not in slug and slug.isascii()
-    path = write_metadata(tmp_path / f"{slug}.txt", sc, tl, f"{slug}.mp4")
+    path, title = write_metadata(tmp_path / f"{slug}.txt", sc, tl, f"{slug}.mp4")
     text = path.read_text("utf-8-sig")
     for header in ("TIPO DE VIDEO:", "VARIABLES", "TÍTULO SUGERIDO:", "DESCRIPCIÓN (COPY):", "HASHTAGS:"):
         assert header in text
+    assert title in text
     tags = text.split("HASHTAGS:")[1].split()
     assert 3 <= len(tags) <= 5 and "#ParadojaInfinita" in tags and all(t.startswith("#") for t in tags)
+    assert "👇" in text                                   # llamada a comentar
+
+
+def test_metadata_avoids_recently_used_titles(tmp_path):
+    sc, tl = _make("anomaly", 11)
+    _, first = write_metadata(tmp_path / "a.txt", sc, tl, "a.mp4")
+    _, second = write_metadata(tmp_path / "b.txt", sc, tl, "b.mp4", avoid=[first])
+    assert first != second
+
+
+def test_history_roundtrip_and_stats(tmp_path):
+    assert catalog.load_history(tmp_path) == []
+    sc, _ = _make("mix", 5)
+    catalog.append_history(tmp_path, catalog.entry_for(sc, video_slug(sc), "titulo"))
+    hist = catalog.load_history(tmp_path)
+    assert hist[0]["seed"] == 5 and hist[0]["types"] == sorted({a.type for a in sc.acts})
+    assert any("Videos generados: 1" in line for line in catalog.stats(hist))
+
+
+def test_smart_choice_penalizes_repetition():
+    sc_math, _ = _make("math", 3)
+    hist = [catalog.entry_for(sc_math, "x", "t")] * 5
+    other, _ = _make("sequence", 3)
+    assert catalog.novelty(other, hist) > catalog.novelty(sc_math, hist)
+    seed, mode = catalog.choose("random", hist, SPEC, tries=12)
+    assert mode in MODES and isinstance(seed, int)
+
+
+def test_smart_random_covers_every_format_over_time():
+    hist, seen = [], set()
+    for i in range(60):
+        seed, mode = catalog.choose("random", hist, SPEC, tries=8)
+        sc = build_scene(seed, mode, SPEC)
+        hist.append(catalog.entry_for(sc, video_slug(sc), f"t{i}"))
+        seen.add(mode)
+    assert len(seen) >= 12
+
+
+def test_shader_digits_and_shapes_are_flipped_for_y_down():
+    """Regresion: sdDigit usa y hacia arriba y la imagen y hacia abajo; sin el volteo los numeros salian invertidos."""
+    src = (Path(__file__).parent.parent / "paradoja" / "shaders" / "scene.frag").read_text("utf-8")
+    num = src[src.index("float numSD"): src.index("float symbolSD")]
+    assert "q.y = -q.y" in num
+    assert "p.y = -p.y" in src[src.index("float shapeSDi"): src.index("float shapeSD(vec2")]

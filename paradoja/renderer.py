@@ -70,10 +70,11 @@ class GpuRenderer:
         t0 = time.perf_counter()
         for i in range(spec.frames):
             ufs = timeline.uniforms(i / spec.fps)
-            act = ufs.pop("_act", None)
-            if self.mode == "magiceye" and act != self._cur_act:   # nueva prueba: recalcular estereograma
+            act, ty = ufs.pop("_act", None), ufs.pop("_type", None)
+            if act != self._cur_act:                               # acto nuevo
                 self._cur_act = act
-                self._build_stereo(ufs)
+                if ty == "magiceye":                               # recalcular el estereograma
+                    self._build_stereo(ufs)
             self._set(ufs)
             self.vao.render(moderngl.TRIANGLE_STRIP)
             yield self.fbo.read(components=3, alignment=1)

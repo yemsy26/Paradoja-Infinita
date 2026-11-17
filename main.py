@@ -4,7 +4,6 @@ Sin argumentos abre el menu interactivo.
 Automatizacion (sin menu):  python main.py --mode random --count 5
 """
 import argparse
-import random
 import secrets
 import shutil
 import subprocess
@@ -14,62 +13,48 @@ from datetime import date
 from pathlib import Path
 
 from paradoja.audio import build_bed
+from paradoja.catalog import append_history, choose, entry_for, load_history, pick_mode, recent_titles, stats
 from paradoja.config import VideoSpec
 from paradoja.encoder import FfmpegEncoder, pick_codec
-from paradoja.metadata import video_slug, write_metadata
+from paradoja.metadata import MODE_LABEL, video_slug, write_metadata
 from paradoja.renderer import GpuRenderer
-from paradoja.scene import MODES, build_scene
+from paradoja.scene import MODES, TYPES, build_scene
 from paradoja.script_es import build_script
 from paradoja.subtitles import build_ass
 from paradoja.timeline import Timeline
 from paradoja.tts import synthesize_all
 
 ROOT = Path(__file__).parent
-MODE_NAMES = {
-    "anomaly": "Reto de anomalia", "illusion": "Ilusion optica de movimiento", "loop": "Bucle infinito",
-    "sync": "Reto de sincronizacion (pause game)", "ishihara": "Test de vision (Ishihara)",
-    "swarm": "Seguimiento de enjambre", "magiceye": "Ojo magico (autostereograma)",
-    "contrast": "Ilusion de contraste simultaneo",
-}
 
 MENU = """
 ==================================================================
    PARADOJA INFINITA  -  generador de videos procedurales
 ==================================================================
-  [1] Reto de anomalia      (encuentra la figura distinta)
-  [2] Ilusion optica        (patrones geometricos enganosos)
-  [3] Bucle infinito        (perfect loop geometrico)
-  [4] Sincronizacion        (pausa justo cuando la figura encaja)
-  [5] Test de vision        (Ishihara: numero/figura oculta)
-  [6] Seguimiento enjambre  (sigue el punto rojo)
-  [7] Ojo magico            (figura 3D oculta al desenfocar)
-  [8] Contraste simultaneo  (el bloque que nunca cambio)
-  [9] 100% aleatorio        (el sistema elige entre los 8 tipos)
+  [1] Aleatorio inteligente   (RECOMENDADO) elige el reto menos
+                              usado recientemente y evita repetir
+  [2] Video mixto             5-7 mini-retos distintos en 1 video
+  [3] Elegir un reto concreto ({n_types} retos + bucle)
+  [4] Estadisticas y ultimos videos
   [0] Salir
 ------------------------------------------------------------------"""
-CHOICES = {"1": "anomaly", "2": "illusion", "3": "loop", "4": "sync", "5": "ishihara", "6": "swarm",
-           "7": "magiceye", "8": "contrast", "9": "random"}
-
-
-def pick_mode(mode: str, seed: int) -> str:
-    """'random' -> el modo lo decide la semilla (reproducible)."""
-    return random.Random(seed ^ 0xA5A5).choice(MODES) if mode == "random" else mode
 
 
 def generate(mode: str, seed: int, args) -> int:
+    """Genera un video (y su .txt) en output/<fecha>/<slug>/ y lo registra en el historial."""
     mode = pick_mode(mode, seed)
     spec = VideoSpec(duration=args.duration)
     scene = build_scene(seed, mode, spec)
     tl = Timeline(spec, scene)
     slug = video_slug(scene)
-    # output/<AAAA-MM-DD>/<slug>/<slug>.mp4 + .txt  (la fecha es la del dia en que se genera)
     folder = args.out / date.today().isoformat() / slug
     out = folder / f"{slug}.mp4"
     work = folder / "work"
     work.mkdir(parents=True, exist_ok=True)
     t0 = time.perf_counter()
 
-    print(f"\nModo: {MODE_NAMES[mode]} | semilla: {seed} | paleta: {scene.palette.name}")
+    print(f"\nFormato: {MODE_LABEL[mode]} | semilla: {seed} | paleta: {scene.palette.name}")
+    if scene.acts:
+        print("  Retos: " + ", ".join(TYPES[a.type].menu for a in scene.acts))
     print("[1/4] Voz (edge-tts)...")
     clips = synthesize_all(build_script(scene, tl), args.voice, ROOT / ".cache" / "tts", spec.duration)
 
@@ -93,7 +78,9 @@ def generate(mode: str, seed: int, args) -> int:
         print(f"FFmpeg fallo (codigo {rc}). Log: {work / 'ffmpeg.log'}")
         return rc
 
-    meta = write_metadata(out.with_suffix(".txt"), scene, tl, out.name)
+    history = load_history(args.out)
+    meta, title = write_metadata(out.with_suffix(".txt"), scene, tl, out.name, recent_titles(history))
+    append_history(args.out, entry_for(scene, slug, title))
 
     print("[4/4] Verificando...")
     info = subprocess.run(
@@ -107,6 +94,15 @@ def generate(mode: str, seed: int, args) -> int:
     return 0
 
 
+def next_target(mode: str, seed, args) -> tuple:
+    """(semilla, formato). Sin semilla explicita, `choose` elige la opcion mas novedosa segun el historial."""
+    if seed is not None:
+        return seed, pick_mode(mode, seed)
+    if mode in ("random", "mix"):
+        return choose(mode, load_history(args.out), VideoSpec(duration=args.duration))
+    return secrets.randbits(32), mode
+
+
 def ask(prompt: str) -> str:
     try:
         return input(prompt).strip()
@@ -115,30 +111,59 @@ def ask(prompt: str) -> str:
         return "0"
 
 
+def ask_count(default: int = 1) -> int:
+    raw = ask(f"Cantidad de videos [{default}]: ") or str(default)
+    return int(raw) if raw.isdigit() and int(raw) >= 1 else 0
+
+
+def concrete_menu() -> str:
+    """Lista de retos por categoria. Devuelve el nombre del formato elegido o '' si se cancela."""
+    order = []
+    print("\n--- Elegir un reto concreto " + "-" * 38)
+    for cat in dict.fromkeys(t.category for t in TYPES.values()):
+        print(f"  {cat.upper()}")
+        for t in TYPES.values():
+            if t.category == cat:
+                order.append(t.name)
+                print(f"    [{len(order):>2}] {t.menu:<16} {t.desc}")
+    order.append("loop")
+    print(f"  ESPECIAL\n    [{len(order):>2}] {'Bucle infinito':<16} Perfect loop geometrico hipnotico")
+    print("    [ 0] Volver")
+    raw = ask("Elige un reto: ")
+    return order[int(raw) - 1] if raw.isdigit() and 1 <= int(raw) <= len(order) else ""
+
+
 def interactive(args) -> int:
     while True:
-        print(MENU)
-        choice = ask("Elige una opcion [0-9]: ")
+        print(MENU.format(n_types=len(TYPES)))
+        choice = ask("Elige una opcion [0-4]: ")
         if choice == "0":
             print("Hasta luego.")
             return 0
-        if choice not in CHOICES:
+        if choice == "4":
+            print("\n" + "\n".join(stats(load_history(args.out))))
+            continue
+        if choice not in ("1", "2", "3"):
             print("Opcion no valida.")
             continue
 
-        raw = ask("Semilla (Enter = aleatoria): ")
-        count_raw = ask("Cantidad de videos [1]: ") or "1"
-        if not count_raw.isdigit() or int(count_raw) < 1:
+        mode, seed_raw = {"1": "random", "2": "mix"}.get(choice), ""
+        if choice == "3":
+            mode = concrete_menu()
+            if not mode:
+                continue
+            seed_raw = ask("Semilla (Enter = aleatoria): ")
+            if seed_raw and not seed_raw.lstrip("-").isdigit():
+                print("Semilla no valida.")
+                continue
+        count = ask_count()
+        if not count:
             print("Cantidad no valida.")
             continue
-        count = int(count_raw)
-        if raw and not raw.lstrip("-").isdigit():
-            print("Semilla no valida.")
-            continue
         for i in range(count):
-            seed = int(raw) + i if raw else secrets.randbits(32)
+            seed, fmt = next_target(mode, int(seed_raw) + i if seed_raw else None, args)
             try:
-                generate(CHOICES[choice], seed, args)
+                generate(fmt, seed, args)
             except Exception as e:  # el menu sigue vivo si falla un video
                 print(f"ERROR: {e}")
                 break
@@ -149,7 +174,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", choices=[*MODES, "random"], help="salta el menu y genera directamente")
     ap.add_argument("--count", type=int, default=1, help="videos a generar con --mode")
-    ap.add_argument("--seed", type=int, default=None, help="semilla (por defecto aleatoria)")
+    ap.add_argument("--seed", type=int, default=None, help="semilla (por defecto: la mas novedosa segun el historial)")
     ap.add_argument("--duration", type=float, default=63.0, help="segundos (61.5-65)")
     ap.add_argument("--voice", default="es-MX-JorgeNeural")
     ap.add_argument("--codec", default="auto", choices=["auto", "h264_nvenc", "hevc_nvenc", "libx264"])
@@ -163,8 +188,8 @@ def main() -> int:
         return interactive(args)
     rc = 0
     for i in range(args.count):
-        seed = (args.seed + i) if args.seed is not None else secrets.randbits(32)
-        rc = generate(args.mode, seed, args) or rc
+        seed, fmt = next_target(args.mode, (args.seed + i) if args.seed is not None else None, args)
+        rc = generate(fmt, seed, args) or rc
     return rc
 
 

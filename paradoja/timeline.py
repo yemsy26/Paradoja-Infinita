@@ -1,6 +1,8 @@
 """Linea de tiempo: uniforms del shader por instante + eventos de sonido."""
-from .config import REVEAL_LEN, VideoSpec
-from .scene import Scene, swarm_clock
+from bisect import bisect_right
+
+from .config import VideoSpec
+from .scene import LOOP_SCENE_ID, TYPES, Scene, swarm_clock
 
 
 def _ss(a: float, b: float, x: float) -> float:
@@ -8,49 +10,57 @@ def _ss(a: float, b: float, x: float) -> float:
     return t * t * (3 - 2 * t)
 
 
+def _flick(act, rt: float) -> int:
+    """0 = imagen A, 1 = imagen B (con el cambio), 2 = pantalla vacia."""
+    if rt >= act.search:
+        return 1
+    if act.type == "memory":                      # memoriza 3 s, 1.4 s en blanco, luego la imagen cambiada
+        return 0 if rt < 3.0 else 2 if rt < 4.4 else 1
+    if rt < 0.8:
+        return 0
+    ph = (rt - 0.8) % 1.7                         # flicker: A - blanco - B - blanco
+    return 0 if ph < 0.6 else 2 if ph < 0.85 else 1 if ph < 1.45 else 2
+
+
 class Timeline:
     def __init__(self, spec: VideoSpec, scene: Scene):
         self.spec, self.scene = spec, scene
         self.is_loop = scene.mode == "loop"
-        n = len(scene.acts)
-        if self.is_loop:
-            self.hook_len = self.outro_start = 0.0
-            self.act_len = self.search_len = 0.0
-        else:
-            self.hook_len = scene.hook_len
-            self.act_len = (spec.duration - scene.hook_len - scene.outro_len) / n
-            self.search_len = self.act_len - REVEAL_LEN
-            self.outro_start = scene.hook_len + n * self.act_len
+        self.acts = scene.acts
+        self._starts = [a.start for a in self.acts]
+        self.outro_start = self.acts[-1].end if self.acts else 0.0
 
-    def act_start(self, i: int) -> float:
-        return self.hook_len + i * self.act_len
+    def act_index(self, t: float) -> int:
+        return min(len(self.acts) - 1, max(0, bisect_right(self._starts, t) - 1))
 
     def uniforms(self, t: float) -> dict:
         if self.is_loop:
-            return {"u_time": t, "u_mix": 1.0, "u_pop": 1.0}
+            return {"u_time": t, "u_mix": 1.0, "u_pop": 1.0, "u_scene": LOOP_SCENE_ID}
 
-        sc, L, S = self.scene, self.act_len, self.search_len
-        idx = min(len(sc.acts) - 1, max(0, int((t - self.hook_len) // L)))
-        act = sc.acts[idx]
-        rt = t - self.act_start(idx)
-        mix = min(_ss(self.hook_len - 0.45, self.hook_len + 0.05, t),
-                  1.0 - _ss(self.outro_start - 0.05, self.outro_start + 0.45, t))
-        mode = sc.mode
+        idx = self.act_index(t)
+        act = self.acts[idx]
+        ty = TYPES[act.type]
+        S, L = act.search, act.length
+        rt = t - act.start
+        sc = self.scene
+
         actph = min(max(rt, 0.0), S)                  # reloj de movimiento: se congela al revelar
         tau, hl = 0.0, 0.0
-        if mode == "swarm":
+        if act.type == "swarm":
             actph = swarm_clock(rt, S, act.q[0])
             hl = 1.0 - _ss(2.0, 2.6, rt)              # el rojo se desvanece a los 2 s
-        elif mode == "sync":                          # tau = 0 justo en el frame del encaje
-            tau = (t - act.hit) if rt <= S else (rt - S - 1.2) * 0.015   # al revelar: repeticion en camara lenta
+        elif act.type == "sync":                      # tau = 0 justo en el frame del encaje
+            tau = (t - act.hit) if rt <= S else (rt - S - 1.2) * 0.015   # al revelar: repeticion lenta
+
+        cols, rows, cell, hexa = act.grid
         u = {
-            "_act": idx,
-            "u_sym": act.sym,
-            "u_actshape": act.shape,
-            "u_tau": tau,
-            "u_hl": hl,
+            "_act": idx, "_type": act.type,
+            "u_scene": ty.scene_id,
+            "u_grid": (float(cols), float(rows)), "u_cell": float(cell), "u_hex": int(hexa),
+            "u_sym": act.sym, "u_actshape": act.shape,
+            "u_tau": tau, "u_hl": hl,
             "u_time": t,
-            "u_mix": mix,
+            "u_mix": 1.0 - _ss(self.outro_start - 0.05, self.outro_start + 0.45, t),
             "u_pop": _ss(0.0, 0.45, rt) * (1.0 - _ss(L - 0.4, L, rt)),
             "u_reveal": _ss(S, S + 0.35, rt),
             "u_revt": max(0.0, rt - S),
@@ -61,10 +71,13 @@ class Timeline:
             "u_target": (float(act.target[0]), float(act.target[1])),
             "u_hue": act.hue,
             "u_actp": act.p,
+            "u_flick": _flick(act, rt) if act.type in ("flicker", "memory") else 0,
         }
-        if mode == "magiceye":
+        if act.type == "magiceye":
             period = (int(32 + act.q[0] * 12)) * 5.0   # px; puntos de 5 px (ver shader)
             u["u_me"] = (period, period * (0.10 + 0.05 * act.q[1]))
+        if act.type == "count":
+            u["u_cnt"] = act.q
         if act.arrays:
             u["u_n"] = act.n
             u.update(act.arrays)
@@ -75,12 +88,11 @@ class Timeline:
         if self.is_loop:  # un campanazo suave al inicio de cada vuelta
             P = self.scene.loop_period
             return [(P * k, "chime") for k in range(1, self.scene.loop_k)]
-        ev = [(0.0, "whoosh")]
-        for i in range(len(self.scene.acts)):
-            s = self.act_start(i)
-            ev.append((s, "whoosh"))
-            if self.scene.mode != "swarm":
-                ev += [(s + self.search_len - k, "tick") for k in (3, 2, 1)]
-            ev.append((s + self.search_len, "ding"))
+        ev = []
+        for a in self.acts:
+            ev.append((a.start, "whoosh"))
+            if TYPES[a.type].countdown:
+                ev += [(a.start + a.search - k, "tick") for k in (3, 2, 1)]
+            ev.append((a.start + a.search, "ding"))
         ev.append((self.outro_start, "chime"))
         return ev

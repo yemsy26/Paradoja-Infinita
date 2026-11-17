@@ -24,21 +24,31 @@ semilla ──► scene.py ──► Scene (paleta, figura, actos, parámetros)
 ## Estructura temporal
 
 ```text
-| gancho 4-6 s | acto 1 | acto 2 | … | acto N | cierre 3-3,5 s |      (N = 4 o 5)
-                 └ búsqueda (act_len − 3 s) ┘└ revelación 3 s ┘
+| acto 1 | acto 2 | … | acto N | cierre 3-3,5 s |      (N = 4-7, duraciones variables)
+  └ búsqueda (largo − 3 s) ┘└ revelación 3 s ┘
 ```
 
-El modo `loop` no tiene gancho ni actos: toda la animación es periódica con periodo `duración / k`.
+Un video es una lista de **actos** (`scene.Act`); cada acto es un reto de un tipo (`scene.TYPES`). Un video de tipo único
+repite el tipo; el video `mix` combina tipos distintos. No hay gancho largo: el primer reto empieza en el segundo 0
+(la retención de los primeros segundos es lo que más pesa). El cierre muestra la marca y pide comentar el puntaje.
+
+`acts._plan` reparte los 59,5-60 s disponibles entre los actos escalando la duración base de cada tipo
+(`TypeInfo.base_len`). `acts.build_acts` llama al constructor del tipo, que devuelve todo lo que el acto necesita:
+parámetros del shader, **narración** (`voice`), **texto en pantalla** (`items`), pregunta y respuesta.
+
+El modo `loop` no tiene actos: toda la animación es periódica con periodo `duración / k`.
 
 ## Convenciones del shader (`shaders/scene.frag`)
 
 - `px.y` crece **hacia abajo**: la fila 0 de `glReadPixels` es el borde superior del video, así no hace falta `vflip`.
-- `u_scene` selecciona el modo (índice de `scene.MODES`). `u_kind` es la variante del acto actual.
+- `u_scene` selecciona el tipo de reto **del acto actual** (`TypeInfo.scene_id`); la rejilla (`u_grid`, `u_cell`, `u_hex`)
+  también es por acto. `u_kind` es la variante dentro del tipo.
 - `u_pop` (0–1) escala/desvanece la escena al entrar y salir del acto; `u_reveal` (0–1) activa la revelación.
 - `u_actph` es el reloj de movimiento del acto: se congela al empezar la revelación (excepto en `swarm`, donde es la
   integral de una velocidad con rampa y frenada, ver `scene.swarm_clock`).
 - Las figuras comparten SDF (`shapeSDi`) para que el vocabulario geométrico sea común a todos los modos.
-- Los textos nunca se dibujan en el shader: van en ASS. Mantén el objetivo del reto fuera de la franja
+- Los textos nunca se dibujan en el shader (excepto las etiquetas numéricas de la revelación del conteo): van en ASS.
+  Los dígitos de 7 segmentos usan `numSD`, que voltea la `y` (el SDF usa y hacia arriba, la imagen hacia abajo). Mantén el objetivo del reto fuera de la franja
   `config.SUB_BAND` (la que tapan los subtítulos).
 
 ## Detalles por modo
@@ -52,17 +62,23 @@ El modo `loop` no tiene gancho ni actos: toda la animación es periódica con pe
 | `contrast` | Bloque de luminosidad constante; el fondo oscila según tres variantes. Al revelar el fondo se iguala al bloque |
 | `loop` | Todas las fases son múltiplos enteros de 2π; el audio ajusta sus frecuencias a un número entero de ciclos |
 
-## Cómo añadir un modo nuevo
+## Cómo añadir un tipo de reto
 
-1. `scene.py`: añade el nombre a `MODES` (el índice será `u_scene`), a `HUD_LABEL` y, si usa cuenta atrás, a
-   `HAS_COUNTDOWN`. Crea los `Act` del modo en `build_scene`.
-2. `shaders/scene.frag`: escribe `miModoScene(px)` y enlázalo en `mainScene`.
-3. `timeline.py`: si necesita uniforms por acto, añádelos en `Timeline.uniforms`.
-4. `script_es.py`: añade el gancho y las frases (cuida que cada segmento quepa en su hueco; el log avisa de solapes).
-5. `metadata.py`: añade etiqueta, *slug* y un constructor de título/descripción/hashtags que pida interacción.
-6. `main.py`: añade la opción al menú.
-7. `tests/`: las pruebas parametrizadas por `MODES` ya cubren determinismo, guion y metadata; añade las propias del modo.
-8. Documenta el modo en `README.md`, `README.en.md` y `CHANGELOG.md`.
+1. `scene.py`: añade un `TypeInfo` a `TYPES` (id de escena, etiqueta, duración base, si lleva cuenta atrás, categoría).
+2. `acts.py`: escribe el constructor `_mi_tipo(rng, ctx, a, st)` que devuelva los campos del `Act` (parámetros,
+   `voice`, `items`, `question`, `answer`) y regístralo en `_BUILDERS`. Cuida que cada línea de `voice` quepa en su hueco.
+3. `shaders/scene.frag`: si necesita una escena propia, escribe `miTipoScene(px)` y enlázala en `mainScene`; si solo es
+   texto, reutiliza `u_scene = 10` y dibuja el texto con `items`.
+4. `timeline.py`: añade uniforms por acto si hacen falta.
+5. `metadata.py`: añade nombre, *slug*, hashtags y un constructor de títulos/descripciones que pida interacción.
+6. `tests/`: las pruebas parametrizadas por `MODES` ya cubren determinismo, estructura, guion y metadata; añade las del tipo.
+7. Documenta el reto en `README.md`, `README.en.md` y `CHANGELOG.md`.
+
+## Elección inteligente
+
+`catalog.choose` genera 24 semillas candidatas, construye cada escena (barato: no renderiza) y puntúa su novedad frente a
+`output/historial.json` (tipos usados recientemente, formato, paleta, figura, acertijos y títulos). Elige la mejor. La
+semilla elegida se guarda en el nombre del video, así que sigue siendo reproducible.
 
 ## Límites conocidos
 

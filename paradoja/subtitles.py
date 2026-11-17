@@ -1,9 +1,9 @@
-"""Subtitulos ASS: grandes, al centro, palabra activa resaltada (color de la paleta) + HUD."""
+"""Subtitulos ASS: grandes, al centro, palabra activa resaltada + HUD, texto de los retos y llamada a comentar."""
 import re
 from pathlib import Path
 
 from .config import BRAND, VideoSpec
-from .scene import HAS_COUNTDOWN, HUD_LABEL
+from .scene import TYPES
 from .timeline import Timeline
 
 _HEADER = """[Script Info]
@@ -18,6 +18,8 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Sub,Arial Black,100,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,9,3,5,50,50,0,1
 Style: Hud,Arial Black,62,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,5,2,7,0,0,0,1
 Style: Title,Arial Black,92,&H00{hl},&H00{hl},&H00000000,&H80000000,0,0,0,0,100,100,2,0,1,7,3,8,40,40,0,1
+Style: Big,Arial Black,120,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,10,3,5,40,40,0,1
+Style: Cta,Arial Black,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,8,3,5,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -86,19 +88,25 @@ def build_ass(path: Path, clips: list, tl: Timeline, spec: VideoSpec) -> Path:
     cx = spec.width // 2
     if tl.is_loop:
         ev.append(_line(spec.duration - 3.0, spec.duration - 0.1, "Title", BRAND, (cx, 300)))
+        ev.append(_line(spec.duration - 3.0, spec.duration - 0.1, "Cta", r"{\fs66}¿CUÁNTAS VECES\NLO REPETISTE?", (cx, 640)))
     else:
-        label = HUD_LABEL[sc.mode]
         n = len(sc.acts)
-        ev.append(_line(0.2, tl.hook_len - 0.3, "Title", BRAND, (cx, 300)))
         ev.append(_line(tl.outro_start + 0.2, spec.duration - 0.1, "Title", BRAND, (cx, 300)))
+        ev.append(_line(tl.outro_start + 0.2, spec.duration - 0.1, "Cta", r"{\fs66}¿CUÁNTOS ACERTASTE?\N" + r"{\c&H" + hl + r"&}COMENTA TU PUNTAJE",
+                        (cx, 640)))
         for a in sc.acts:
-            s = tl.act_start(a.index)
-            ev.append(_line(s + 0.15, s + tl.act_len - 0.4, "Hud", f"{label} {a.index + 1}/{n}", (70, 110)))
-            for k in (range(5, 0, -1) if sc.mode in HAS_COUNTDOWN else ()):  # el numero k dura mientras faltan k s
-                t0 = s + tl.search_len - k
-                ev.append(_line(t0, t0 + 1, "Hud",
-                                r"{\an9\fs130\c&H" + hl + r"&\fscx70\fscy70\t(0,120,\fscx100\fscy100)}" + str(k),
-                                (spec.width - 70, 80)))
+            info = TYPES[a.type]
+            ev.append(_line(a.start + 0.15, a.end - 0.4, "Hud", f"{info.hud} {a.index + 1}/{n}", (70, 110)))
+            if info.countdown:
+                for k in range(min(5, int(a.search)), 0, -1):  # el numero k dura mientras faltan k segundos
+                    t0 = a.start + a.search - k
+                    ev.append(_line(t0, t0 + 1, "Hud",
+                                    r"{\an9\fs130\c&H" + hl + r"&\fscx70\fscy70\t(0,120,\fscx100\fscy100)}" + str(k),
+                                    (spec.width - 70, 80)))
+            for t0, t1, text, size, bgr, y in a.items:           # texto del reto (calculo, secuencia, palabras...)
+                color = r"\c&H" + bgr + "&" if bgr else ""
+                ev.append(_line(a.start + t0, a.start + t1, "Big",
+                                "{\\fs" + str(size) + color + "\\fad(120,0)}" + text, (cx, y)))
 
     path.write_text(_HEADER.format(w=spec.width, h=spec.height, hl=hl) + "\n".join(ev) + "\n", encoding="utf-8")
     return path

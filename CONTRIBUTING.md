@@ -7,7 +7,8 @@ paletas, idiomas y mejoras de documentación.
 
 - Busca en los [issues](https://github.com/yemsy26/Paradoja-Infinita/issues) si ya existe lo que quieres proponer.
 - Para cambios grandes (un modo nuevo, cambios en el pipeline), abre primero un issue para acordar el enfoque.
-- Lee la [arquitectura](docs/ARQUITECTURA.md); explica cómo está organizado el código y cómo añadir un modo.
+- Lee la [arquitectura](docs/ARQUITECTURA.md); explica cómo está organizado el código y cómo añadir un tipo de reto.
+- Para añadir acertijos basta con editar `content/acertijos.json` (formato `{"q": "...", "a": "..."}`).
 
 ## Entorno de desarrollo
 

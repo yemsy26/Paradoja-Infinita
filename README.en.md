@@ -22,24 +22,44 @@ audio, so each video is structurally different yet fully **reproducible**.
 - **Free neural voice** via [edge-tts](https://github.com/rany2/edge-tts) with per-word timing for large, centered,
   karaoke-style subtitles.
 - **Procedural audio** (drone + effects) synthesized with NumPy: no copyrighted music.
-- **8 video types** plus a fully random mode, through an interactive menu or a scriptable CLI.
+- **14 challenge types + mixed video + perfect loop**, with a smart picker that avoids repeating challenges, an
+  interactive menu and a scriptable CLI.
 - **Publish-ready metadata**: each video produces a `.txt` with title, description (with a comment call-to-action),
   hashtags and the challenge answers.
 - Fixed **63 s** duration (valid range 61.5–65 s) to meet the In-Stream monetization minimum.
 
-## Video modes
+## Challenges
 
-| # | Mode | Mechanic |
+A **single-type** video repeats one challenge (4-7 rounds of rising difficulty). The **mixed** video combines 5-7
+*different* challenges. Every video starts with the challenge at second 0, reveals each answer at the end of its round
+and closes with a call to comment the score.
+
+| Category | Challenge | Mechanic |
 |---|---|---|
-| 1 | Anomaly challenge | Grid of shapes where one differs (color, size, brightness, dot, rotation); rising difficulty |
-| 2 | Optical illusion | 5 of 6 illusions (Ouchi, café wall, Ebbinghaus, scintillating grid, spiral, moiré), unmasked at the end |
-| 3 | Infinite loop | Perfect geometric loop (last frame matches the first, audio included) |
-| 4 | Synchronization | A shape spins at extreme speed and fits a silhouette for **exactly one frame** |
-| 5 | Vision test (Ishihara) | Fluctuating Voronoi field hiding a number or shape through a slight tint difference |
-| 6 | Swarm tracker | One red particle for 2 s, then it blends in, the swarm mixes and stops |
-| 7 | Magic eye | Real autostereogram with a different hidden 3D shape per round |
-| 8 | Simultaneous contrast | A constant-color block over a changing background; it vanishes at the reveal |
-| 9 | Random | The seed picks one of the eight types |
+| Visual | Anomaly | Grid of shapes where one differs (color, size, brightness, dot, rotation) |
+| Visual | Optical illusion | Ouchi, café wall, Ebbinghaus, scintillating grid, spiral, moiré; unmasked at the end |
+| Visual | Vision test | Fluctuating Voronoi field hiding a number or shape through a slight tint difference |
+| Visual | Magic eye | Real autostereogram, a different hidden 3D shape per round |
+| Visual | Contrast | 4 variants (does it change? lighter or darker? which is darker? which is lighter?); the truth differs per round |
+| Reflexes | Synchronization | A shape spins at extreme speed and fits a silhouette for **exactly one frame** |
+| Attention | Swarm tracker | One red particle for 2 s, it blends in, the swarm mixes and stops |
+| Attention | Counting | "How many blue triangles?" among moving shapes; the reveal numbers the right ones |
+| Attention | What changed | Two images flicker and one shape changes (color, size, rotation, disappears...) |
+| Memory | Memory | Memorize for 3 s, blank screen, one shape changed |
+| Mind | Stroop effect | Color words printed in a different ink: say the ink color |
+| Mind | Math | Generated expressions with an order-of-operations trap |
+| Mind | Sequence | "Which number comes next?" (arithmetic, geometric, squares, Fibonacci, primes...) |
+| Mind | Riddle | Riddles and trick questions from `content/acertijos.json` (editable) |
+| Special | Infinite loop | Perfect geometric loop (last frame matches the first, audio included) |
+| Special | Mixed | 5-7 different challenges in one video |
+
+### Variety and anti-saturation
+
+- **Generated content, not templates:** every expression, sequence, count, word set or board is new.
+  Riddles come from `content/acertijos.json`; add your own as `{"q": "question", "a": "answer"}`.
+- **Smart random:** for each video 24 candidate seeds are scored against `output/historial.json` and the one most
+  different from recent uploads wins (challenge, format, palette, shape, riddle and title are all considered).
+- The same seed + format always reproduces the same video.
 
 ## Requirements
 
@@ -71,17 +91,18 @@ winget install -e --id Gyan.FFmpeg
 ## Usage
 
 ```powershell
-python main.py                                    # interactive menu
-python main.py --mode random --count 5            # five videos, random type
-python main.py --mode swarm --seed 12345          # reproducible
+python main.py                                    # interactive menu (option 1 = smart random, recommended)
+python main.py --mode random --count 5            # five varied videos (smart pick)
+python main.py --mode mix --count 3               # three mixed videos
+python main.py --mode math --seed 12345           # one specific challenge, reproducible
 python main.py --mode loop --duration 64 --voice en-US-GuyNeural --codec hevc_nvenc
 ```
 
 | Option | Description | Default |
 |---|---|---|
-| `--mode` | `anomaly`, `illusion`, `loop`, `sync`, `ishihara`, `swarm`, `magiceye`, `contrast`, `random`; skips the menu | menu |
+| `--mode` | `random`, `mix`, `loop` or a challenge: `anomaly`, `illusion`, `ishihara`, `magiceye`, `contrast`, `sync`, `swarm`, `count`, `flicker`, `memory`, `stroop`, `math`, `sequence`, `riddle`; skips the menu | menu |
 | `--count` | Videos to generate with `--mode` | `1` |
-| `--seed` | Integer seed; same seed + mode = same video | random |
+| `--seed` | Integer seed; same seed + format = same video | most novel |
 | `--duration` | Seconds (61.5–65) | `63` |
 | `--voice` | edge-tts voice (`edge-tts --list-voices`) | `es-MX-JorgeNeural` |
 | `--codec` | `auto`, `h264_nvenc`, `hevc_nvenc`, `libx264` | `auto` |

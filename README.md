@@ -19,7 +19,8 @@ guion narrado y audio, de modo que cada video es estructuralmente distinto y a l
 ## Contenido
 
 - [Características](#características)
-- [Modos de video](#modos-de-video)
+- [Retos disponibles](#retos-disponibles)
+- [Variedad y anti-saturación](#variedad-y-anti-saturación)
 - [Requisitos](#requisitos)
 - [Instalación](#instalación)
 - [Uso](#uso)
@@ -40,24 +41,48 @@ guion narrado y audio, de modo que cada video es estructuralmente distinto y a l
 - **Voz neuronal gratuita** con [edge-tts](https://github.com/rany2/edge-tts), con tiempos por palabra para sincronizar
   subtítulos grandes, centrados y con la palabra activa resaltada.
 - **Audio procedural** (drone + efectos) generado con NumPy: sin música con derechos de autor.
-- **8 tipos de video** y modo 100 % aleatorio, con menú interactivo o CLI para automatizar.
+- **14 tipos de reto + video mixto + bucle perfecto**, con elección inteligente que evita repetir retos, menú
+  interactivo o CLI para automatizar.
 - **Metadata lista para publicar**: cada video genera un `.txt` con título, descripción (con llamada a comentar),
   hashtags y las respuestas del reto.
 - Duración fija de **63 s** (rango válido 61,5–65 s) para cumplir el mínimo de monetización In-Stream.
 
-## Modos de video
+## Retos disponibles
 
-| # | Modo | Mecánica | Interacción que se pide |
+Un video de **tipo único** repite el mismo reto (4-7 veces, con dificultad creciente). El **video mixto** combina de 5 a
+7 retos *distintos*. Todos empiezan con el reto en el segundo 0, revelan la respuesta al final de cada prueba y cierran
+con una llamada a comentar el puntaje.
+
+| Categoría | Reto | Mecánica | Qué se pide en comentarios |
 |---|---|---|---|
-| 1 | **Reto de anomalía** | Rejilla de figuras donde una difiere (color, tamaño, brillo, punto o giro); dificultad creciente | ¿En qué segundo lo notaste? |
-| 2 | **Ilusión óptica** | 5 de 6 ilusiones: Ouchi, café wall, Ebbinghaus, rejilla centelleante, espiral, muaré; se «desenmascaran» al final | ¿Cuántas te engañaron? |
-| 3 | **Bucle infinito** | Bucle geométrico perfecto (el último frame empalma con el primero, audio incluido) | ¿Cuántas veces lo repetiste? |
-| 4 | **Sincronización** | Una figura gira a velocidad extrema y encaja en una silueta en **un solo frame** | ¿En qué número del contador pausaste? |
-| 5 | **Test de visión (Ishihara)** | Voronoi fluctuante con un número o figura oculto por una ligera variación de tono | ¿Qué número/figura viste? |
-| 6 | **Enjambre** | Una partícula roja 2 s, se iguala, se mezclan y se detienen | ¿Dónde quedó el punto rojo? |
-| 7 | **Ojo mágico** | Autoestereograma real con una figura 3D distinta en cada prueba | ¿Qué figura viste? |
-| 8 | **Contraste simultáneo** | Bloque de color constante sobre un fondo que cambia; al revelar el bloque desaparece | ¿Cambió o no? |
-| 9 | **Aleatorio** | La semilla elige entre los 8 tipos anteriores | — |
+| Visual | **Anomalía** | Rejilla de figuras donde una difiere (color, tamaño, brillo, punto o giro) | ¿En qué segundo lo notaste? |
+| Visual | **Ilusión óptica** | Ouchi, café wall, Ebbinghaus, rejilla centelleante, espiral, muaré; se «desenmascaran» | ¿Cuántas te engañaron? |
+| Visual | **Test de visión** | Voronoi fluctuante con un número o figura oculto por una ligera variación de tono | ¿Qué número/figura viste? |
+| Visual | **Ojo mágico** | Autoestereograma real con una figura 3D distinta por prueba | ¿Qué figura viste? |
+| Visual | **Contraste** | 4 variantes: ¿cambia el color? · ¿se aclara u oscurece? · ¿cuál es más oscuro? · ¿cuál es más claro? (la respuesta cambia según la prueba) | Tu respuesta antes de la revelación |
+| Reflejos | **Sincronización** | La figura gira a velocidad extrema y encaja en una silueta en **un solo frame** | ¿En qué número del contador pausaste? |
+| Atención | **Seguimiento** | Una partícula roja 2 s, se iguala, el enjambre se mezcla y se detiene | ¿Dónde quedó el punto rojo? |
+| Atención | **Conteo** | «¿Cuántos triángulos azules hay?» entre figuras en movimiento; la revelación numera las correctas | Tu número |
+| Atención | **Qué cambió** | Dos imágenes parpadean y una figura cambia (color, tamaño, giro, desaparece…) | Fila y columna del cambio |
+| Memoria | **Memoria** | Memoriza 3 s, pantalla en blanco y la figura cambió | Qué figura cambió |
+| Mente | **Efecto Stroop** | Palabras de color con tinta distinta: di el color de la tinta | ¿Cuántas fallaste? |
+| Mente | **Cálculo** | Operaciones generadas con «trampa» de orden (el resultado obvio es incorrecto) | Tu resultado |
+| Mente | **Secuencia** | «¿Qué número sigue?» (aritmética, geométrica, cuadrados, Fibonacci, primos…) | El número que sigue |
+| Mente | **Acertijo** | Acertijos y preguntas trampa de `content/acertijos.json` (editable) | Tu respuesta |
+| Especial | **Bucle infinito** | Perfect loop geométrico (el último frame empalma con el primero, audio incluido) | ¿Cuántas veces lo repetiste? |
+| Especial | **Mixto** | 5-7 retos distintos en un solo video | Puntaje de 0 a N |
+
+## Variedad y anti-saturación
+
+El sistema está pensado para publicar varias veces al día sin repetir fórmula:
+
+- **Contenido generado, no plantillas:** cada operación, secuencia, conteo, conjunto de palabras o tablero es nuevo, así que
+  los retos de texto tienen variedad prácticamente ilimitada. Los acertijos salen de `content/acertijos.json`: añade
+  los tuyos con el formato `{"q": "pregunta", "a": "respuesta"}`.
+- **Aleatorio inteligente:** para cada video se evalúan 24 semillas candidatas y se elige la más distinta de lo publicado
+  recientemente (según `output/historial.json`): evita repetir el mismo reto, formato, paleta, figura, acertijo o título.
+- **Video mixto:** cambia de reto cada 8-12 s, lo que mantiene la atención y multiplica las combinaciones.
+- La misma semilla + el mismo formato siguen dando el mismo video (reproducible).
 
 ## Requisitos
 
@@ -115,28 +140,30 @@ python main.py
 ```
 
 ```text
-  [1] Reto de anomalia      [5] Test de vision
-  [2] Ilusion optica        [6] Seguimiento enjambre
-  [3] Bucle infinito        [7] Ojo magico
-  [4] Sincronizacion        [8] Contraste simultaneo
-  [9] 100% aleatorio        [0] Salir
+  [1] Aleatorio inteligente   (RECOMENDADO) elige el reto menos usado recientemente y evita repetir
+  [2] Video mixto             5-7 mini-retos distintos en 1 video
+  [3] Elegir un reto concreto (14 retos + bucle)
+  [4] Estadisticas y ultimos videos
+  [0] Salir
 ```
 
-Tras elegir un modo se pregunta la semilla (Enter = aleatoria) y la cantidad de videos.
+Para publicar a diario basta con la opción **[1]** y la cantidad de videos que quieras: cada uno se elige según el
+historial. La opción **[3]** muestra los retos por categoría y pregunta la semilla (Enter = aleatoria).
 
 ### Línea de comandos (automatización)
 
 ```powershell
-python main.py --mode random --count 5            # 5 videos con tipo aleatorio
-python main.py --mode swarm --seed 12345          # reproducible
+python main.py --mode random --count 5            # 5 videos variados (elección inteligente)
+python main.py --mode mix --count 3               # 3 videos mixtos
+python main.py --mode math --seed 12345           # un reto concreto, reproducible
 python main.py --mode loop --duration 64 --voice es-MX-DaliaNeural --codec hevc_nvenc
 ```
 
 | Opción | Descripción | Por defecto |
 |---|---|---|
-| `--mode` | `anomaly`, `illusion`, `loop`, `sync`, `ishihara`, `swarm`, `magiceye`, `contrast`, `random`. Omite el menú | — (menú) |
+| `--mode` | `random`, `mix`, `loop` o un reto: `anomaly`, `illusion`, `ishihara`, `magiceye`, `contrast`, `sync`, `swarm`, `count`, `flicker`, `memory`, `stroop`, `math`, `sequence`, `riddle`. Omite el menú | — (menú) |
 | `--count` | Videos a generar con `--mode` (la semilla se incrementa si se fija `--seed`) | `1` |
-| `--seed` | Semilla entera. Misma semilla + mismo modo = mismo video | aleatoria |
+| `--seed` | Semilla entera. Misma semilla + mismo formato = mismo video | la más novedosa |
 | `--duration` | Duración en segundos (61,5–65) | `63` |
 | `--voice` | Voz de edge-tts (`edge-tts --list-voices`) | `es-MX-JorgeNeural` |
 | `--codec` | `auto`, `h264_nvenc`, `hevc_nvenc`, `libx264` | `auto` |
@@ -155,8 +182,8 @@ output/
         └── anomalia_estrella_3380163066.txt
 ```
 
-El nombre sigue el patrón `<modo>_<detalle>_<semilla>` (por ejemplo `ilusion_espiral_998877`, `ishihara_74_8`,
-`ojomagico_rombo_101`). El `.txt` contiene el borrador de publicación:
+El nombre sigue el patrón `<formato>_<detalle>_<semilla>` (por ejemplo `ilusion_espiral_998877`, `ishihara_74_8`,
+`calculo_operaciones_5`, `mixto_calculo-cambio-stroop_38`). El `.txt` contiene el borrador de publicación:
 
 ```text
 TIPO DE VIDEO:       Reto de Anomalía
@@ -166,7 +193,8 @@ DESCRIPCIÓN (COPY):  ... (con llamada a comentar adaptada al modo)
 HASHTAGS:            3-5 etiquetas del modo, siempre #ParadojaInfinita
 ```
 
-Los textos varían según la semilla para no repetir títulos ni descripciones.
+Los títulos y descripciones se eligen entre varias versiones y evitan repetir los usados recientemente. Cada video se
+registra en `output/historial.json`, que usa la elección inteligente y la opción de estadísticas.
 
 ## Qué cambia con la semilla
 
@@ -176,7 +204,7 @@ Los textos varían según la semilla para no repetir títulos ni descripciones.
 | Figura | círculo, triángulo, rombo, hexágono, estrella, pentágono, cuadrado |
 | Layout | 4 tamaños de rejilla, normal u hexagonal, 4 estilos de movimiento y de fondo, giro |
 | Velocidad | 0,5×–1,9× en fondo, figuras y gancho |
-| Estructura | gancho de 4/5/6 s con 3 escenas, 4 o 5 actos, cierre de 3/3,5 s |
+| Estructura | 4-7 actos de duración variable que rellenan los 63 s; cierre de 3/3,5 s; en el video mixto, qué retos y en qué orden |
 | Guion | frases y género gramatical adaptados a la figura y al reto |
 
 ## Rendimiento y GPU
@@ -217,15 +245,19 @@ main.py                  Menú interactivo / CLI
 iniciar.bat              Lanzador con instalación automática (Windows)
 paradoja/
   config.py              Constantes y VideoSpec (1080x1920, 60 fps)
-  scene.py               Semilla → paleta, figura, actos, parámetros por modo
+  scene.py               Modelo de datos, tipos de reto y paletas
+  acts.py                Generación de cada reto: parámetros, narración y texto en pantalla
+  texts_es.py            Textos en español, números en palabras y gramática de figuras
+  catalog.py             Historial y elección inteligente de retos
   timeline.py            Tiempo → uniforms del shader y eventos de sonido
   renderer.py            OpenGL headless (moderngl) → frames RGB24
   shaders/scene.frag     Todos los modos en GLSL
-  script_es.py, tts.py   Guion por modo + síntesis de voz con tiempos por palabra
+  script_es.py, tts.py   Guion del video + síntesis de voz con tiempos por palabra
   audio.py               Drone y efectos procedurales
   subtitles.py           Subtítulos ASS y HUD
   encoder.py             FFmpeg: pipe crudo + mezcla + subtítulos → NVENC
   metadata.py            Nombres de archivo y borrador de publicación (.txt)
+content/acertijos.json   Acertijos editables
 tests/                   Pruebas automatizadas
 docs/ARQUITECTURA.md     Diseño interno y cómo añadir un modo
 ```

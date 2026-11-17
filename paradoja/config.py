@@ -10,6 +10,8 @@ SUB_BAND = (890, 1030)  # franja vertical (px) que tapan los subtitulos: el obje
 
 # (columnas, filas, tamaño de celda en px). cols*cell (+0.5 celda en modo hexagonal) <= 1080
 LAYOUTS = ((5, 7, 192), (6, 8, 160), (7, 9, 144), (9, 12, 112))
+# rejillas pequeñas para los retos de memoria (pocas figuras que recordar)
+MEMORY_LAYOUTS = ((3, 4, 256), (4, 5, 208), (3, 5, 224))
 
 
 @dataclass(frozen=True)

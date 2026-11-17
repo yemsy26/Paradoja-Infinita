@@ -3,6 +3,25 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.1.0] - 2026-11-16
+
+### Añadido
+- 7 retos nuevos: conteo, qué cambió, memoria, efecto Stroop, cálculo, secuencia y acertijo (14 en total).
+- Video **mixto**: combina de 5 a 7 retos distintos en un mismo video.
+- **Aleatorio inteligente** con historial (`output/historial.json`): elige el reto, formato, paleta, figura, acertijo y
+  título menos usados recientemente. Menú reorganizado (aleatorio inteligente, mixto, reto concreto, estadísticas).
+- Llamada a comentar el puntaje en el cierre de cada video; textos de la metadata para cada reto.
+- `content/acertijos.json`: acertijos editables.
+
+### Cambiado
+- Estructura de los videos: el primer reto empieza en el segundo 0 (sin gancho largo) y hay de 4 a 7 actos de duración
+  variable. Las semillas antiguas ya no reproducen exactamente el mismo video.
+- Contraste simultáneo: 4 variantes con respuestas distintas (antes todas las pruebas terminaban en «nunca cambió»).
+- Las figuras (triángulo, estrella) se dibujan con la punta hacia arriba.
+
+### Corregido
+- Los números del test de visión (Ishihara) se dibujaban invertidos verticalmente.
+
 ## [1.0.0] - 2026-11-15
 
 Primera versión pública.

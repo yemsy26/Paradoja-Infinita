@@ -3,7 +3,8 @@
 // del video), asi no hace falta ningun vflip en CPU.
 //
 // u_scene: 0 anomalia | 1 ilusion | 2 bucle | 3 sincronizacion (pause game) | 4 ishihara
-//          5 enjambre | 6 ojo magico (autostereograma) | 7 contraste simultaneo
+//          5 enjambre | 6 ojo magico (autostereograma) | 7 contraste | 8 conteo | 9 flicker/memoria | 10 fondo de texto
+// u_scene y los parametros de rejilla cambian por ACTO (un video mixto combina varios tipos).
 // Todo (paleta, forma, layout, movimiento, velocidad, tipo de gancho/ilusion/bucle) llega por uniforms
 // decididos por la semilla en scene.py.
 
@@ -16,7 +17,8 @@ uniform vec4  u_rnd;
 uniform vec3  u_lint, u_bg1, u_bg2, u_tuna, u_tunb, u_accent;
 // modos nuevos
 uniform int   u_pass, u_sym, u_actshape, u_n;      // u_pass=1: pasada de profundidad (ojo magico)
-uniform float u_tau, u_hl;
+uniform float u_tau, u_hl, u_flick;                // u_flick: 0 imagen A, 1 imagen B, 2 vacio
+uniform vec2  u_cnt;                               // conteo: filtro de figura (-1 = cualquiera), filtro de tono
 uniform vec2  u_me;                                // ojo magico: periodo (px), desplazamiento maximo (px)
 uniform vec4  u_pa[40], u_pb[40];                  // enjambre (40 = SWARM_MAX)
 uniform sampler2D u_phi, u_dep;                    // ojo magico: fase acumulada y mapa de profundidad
@@ -67,6 +69,7 @@ float sdStar(vec2 p, float r, float n, float m) {
 }
 // Figura elegida por la semilla; s = factor de escala (1 = tamaño base 0.36 de celda).
 float shapeSDi(vec2 p, float s, int idx) {
+    p.y = -p.y;                                        // y de la imagen hacia abajo: triangulo y estrella quedan derechos
     if (idx == 0) return length(p) - 0.36 * s;
     if (idx == 1) return sdNgon(p, 0.43 * s, 3.0);
     if (idx == 2) return sdNgon(p, 0.40 * s, 4.0);
@@ -165,7 +168,16 @@ vec3 drawCell(vec3 col, vec2 id, vec2 f) {
     float sc = (1.0 + 0.02 * sin(T * 1.7 + ph)) * u_pop;
     float ang = u_spin * T;
     vec2 dotOff = vec2(0.0);
-    if (odd) {
+    if (u_scene == 9) {                                // flicker/memoria: el cambio solo existe en la imagen B
+        if (odd && u_flick > 0.5 && u_flick < 1.5) {
+            if (u_kind == 0)      hue += 0.28 * u_delta;
+            else if (u_kind == 1) sc *= 1.0 - 0.5 * u_delta;
+            else if (u_kind == 2) val += 0.35 * u_delta;
+            else if (u_kind == 3) dotOff = 0.30 * u_delta * vec2(cos(u_rnd.z * TAU), sin(u_rnd.z * TAU));
+            else if (u_kind == 4) ang += 1.2 * u_delta;
+            else                  sc = 0.0;            // la figura desaparece
+        }
+    } else if (odd) {
         if (u_kind == 0)      hue += 0.09 * u_delta;
         else if (u_kind == 1) sc *= 1.0 - 0.22 * u_delta;
         else if (u_kind == 2) val += 0.26 * u_delta;
@@ -200,7 +212,8 @@ vec3 anomalyScene(vec2 px) {
     float sh = (u_hex == 1 && mod(row, 2.0) > 0.5) ? 0.5 : 0.0;
     vec2 id = vec2(floor(g.x - sh), row);
 
-    if (id.x >= 0.0 && id.x < u_grid.x && id.y >= 0.0 && id.y < u_grid.y)
+    bool hidden = (u_scene == 9 && u_flick > 1.5);
+    if (!hidden && id.x >= 0.0 && id.x < u_grid.x && id.y >= 0.0 && id.y < u_grid.y)
         col = drawCell(col, id, vec2(fract(g.x - sh), fract(g.y)) - 0.5);
 
     // anillo + ondas sobre el objetivo al revelar
@@ -433,12 +446,18 @@ float sdDigit(vec2 p, int d) {                         // digito de 7 segmentos,
     if ((m & 64) != 0) r = min(r, sdSeg(p, vec2(-0.20, 0.0),   vec2(0.20, 0.0)));
     return r - 0.085;
 }
+float numSD(vec2 q, int n) {                           // numero de 1-2 digitos, q en unidades de alto de digito
+    q.y = -q.y;                                        // sdDigit usa y hacia arriba; la imagen usa y hacia abajo
+    if (n >= 10) {
+        int d1 = n / 10, d2 = n - 10 * d1;
+        return min(sdDigit(q - vec2(-0.40, 0.0), d1), sdDigit(q - vec2(0.40, 0.0), d2));
+    }
+    return sdDigit(q, n);
+}
 float symbolSD(vec2 p) {                               // p relativo al centro del simbolo
     if (u_sym >= 0) {
         float H = 0.42;
-        vec2 q = p / H;
-        int d1 = u_sym / 10, d2 = u_sym - 10 * d1;
-        return min(sdDigit(q - vec2(-0.40, 0.0), d1), sdDigit(q - vec2(0.40, 0.0), d2)) * H;
+        return numSD(p / H, u_sym) * H;
     }
     return shapeSDi(rot(p, u_actp.y * TAU), 0.30 / 0.36, u_actshape);
 }
@@ -547,25 +566,87 @@ vec3 magicScene(vec2 px) {
 vec3 contrastScene(vec2 px) {
     vec2 p = (px - 0.5 * u_res) / u_res.x;
     vec2 uv = px / u_res;
+    float tau = 1.0 - u_progress;                      // progreso de la busqueda 0..1
     float T = u_actph * (0.6 + 0.5 * u_actp.x);
     float A = 0.20 + 0.10 * (1.0 - u_delta);
-    float L0 = 0.5;
-    float Lbg;
-    if (u_kind == 0) {                                 // gradiente vertical que sube y baja de luminosidad
-        Lbg = L0 + A * sin(T * 1.2) + 0.30 * (uv.y - 0.5);
-    } else if (u_kind == 1) {                          // gradiente radial que pulsa
-        Lbg = L0 + A * sin(T * 1.2) * (0.5 + 1.0 * smoothstep(0.0, 0.5, length(p - ICENTER))) + 0.10;
-    } else {                                           // campo dividido: mitades en oposicion de fase
-        Lbg = L0 + A * sin(T * 1.2) * (2.0 * smoothstep(-0.04, 0.04, p.x) - 1.0);
+    float L0 = 0.5, Lbg = L0, Lb1 = L0, Lb2 = L0;
+    float side = (u_actp.x < 0.5) ? 1.0 : -1.0;        // +1: el lado izquierdo tiene el fondo oscuro
+    float dirn = (u_actp.y >= 0.5) ? 1.0 : -1.0;       // +1: el bloque se aclara de verdad (variante 1)
+    bool two = (u_kind >= 2);
+
+    if (u_kind == 0) {                                 // bloque constante, el fondo cambia
+        if (u_actp.y < 0.5) Lbg = L0 + A * sin(T * 1.2) + 0.30 * (uv.y - 0.5);
+        else                Lbg = L0 + A * sin(T * 1.2) * (0.5 + smoothstep(0.0, 0.5, length(p - ICENTER))) + 0.10;
+    } else if (u_kind == 1) {                          // el bloque cambia de verdad, el fondo cambia mas rapido
+        Lb1 = L0 + dirn * 0.12 * tau;
+        Lbg = L0 + dirn * 0.30 * tau + 0.30 * (uv.y - 0.5);
+    } else {                                           // dos bloques sobre fondos opuestos
+        float split = smoothstep(-0.03, 0.03, p.x);
+        float darkSide = L0 - 0.27, lightSide = L0 + 0.27;
+        Lbg = mix(side > 0.0 ? darkSide : lightSide, side > 0.0 ? lightSide : darkSide, split);
+        float dl = 0.05 + 0.03 * (1.0 - u_delta);
+        Lb1 = L0 - ((u_kind == 3 && side > 0.0) ? dl : 0.0);     // bloque izquierdo
+        Lb2 = L0 - ((u_kind == 3 && side < 0.0) ? dl : 0.0);     // bloque derecho
     }
-    Lbg = mix(Lbg, L0, u_reveal);                      // al revelar el fondo se iguala al bloque: desaparece
+    Lbg = mix(Lbg, L0, u_reveal);                      // al revelar el fondo se iguala y deja ver la verdad
+
     float sat = u_sv.x * 0.55;
-    vec3 bgc = hsv2rgb(vec3(u_hue, sat, clamp(Lbg, 0.02, 1.0)));
-    vec3 blk = hsv2rgb(vec3(u_hue, sat, L0));
-    float sd = shapeSD(p - ICENTER, 0.27 / 0.36);
-    vec3 col = mix(bgc, blk, 1.0 - smoothstep(-0.002, 0.002, sd));
-    col = mix(col, u_accent, exp(-pow(sd / 0.003, 2.0)) * smoothstep(0.4, 1.0, u_reveal));
+    vec3 col = hsv2rgb(vec3(u_hue, sat, clamp(Lbg, 0.02, 1.0)));
+    float ring = 0.0;
+    if (!two) {
+        float sd = shapeSD(p - ICENTER, 0.27 / 0.36);
+        col = mix(col, hsv2rgb(vec3(u_hue, sat, Lb1)), 1.0 - smoothstep(-0.002, 0.002, sd));
+        ring = exp(-pow(sd / 0.003, 2.0));
+    } else {
+        float sdl = shapeSD(p - vec2(-0.21, ICENTER.y), 0.16 / 0.36);
+        float sdr = shapeSD(p - vec2(0.21, ICENTER.y), 0.16 / 0.36);
+        col = mix(col, hsv2rgb(vec3(u_hue, sat, Lb1)), 1.0 - smoothstep(-0.002, 0.002, sdl));
+        col = mix(col, hsv2rgb(vec3(u_hue, sat, Lb2)), 1.0 - smoothstep(-0.002, 0.002, sdr));
+        ring = max(exp(-pow(sdl / 0.003, 2.0)), exp(-pow(sdr / 0.003, 2.0)));
+    }
+    col = mix(col, u_accent, ring * smoothstep(0.4, 1.0, u_reveal));
     col = mix(background(px), col, u_pop);
+    return timerBar(col, px);
+}
+
+// ------------------------------------------------------------------ MODO 9: conteo de figuras
+vec3 countScene(vec2 px) {
+    vec2 p = (px - 0.5 * u_res) / u_res.x;
+    vec3 col = background(px);
+    float s = u_actph * (0.5 + 0.25 * (1.0 - u_delta));
+    bool mono = u_sv.x < 0.01;
+    int k = 0;
+    for (int i = 0; i < 40; i++) {
+        if (i >= u_n) break;
+        vec4 a = u_pa[i], b = u_pb[i];
+        vec2 pos = vec2(a.x * sin(a.z * s + b.x), -0.02 + a.y * sin(a.w * s + b.y));
+        bool match = (u_cnt.x < 0.0 || abs(b.z - u_cnt.x) < 0.5) && (u_cnt.y < 0.0 || abs(b.w - u_cnt.y) < 0.02);
+        float d = shapeSDi(p - pos, 0.036 / 0.36 * u_pop, int(b.z + 0.5));
+        vec3 c = mono ? mix(u_tuna, vec3(1.0), 0.3) : hsv2rgb(vec3(b.w, 0.85, 0.95));
+        float dim = match ? 1.0 : mix(1.0, 0.3, u_reveal);
+        col += c * 0.08 * exp(-max(d, 0.0) * 40.0) * dim;
+        col = mix(col, c * dim, 1.0 - smoothstep(-0.0012, 0.0012, d));
+        if (match) {
+            k++;
+            float rg = exp(-pow((length(p - pos) - 0.052) / 0.003, 2.0));
+            float lab = numSD((p - pos - vec2(0.0, -0.095)) / 0.05, k) * 0.05;
+            col = mix(col, u_accent, rg * u_reveal);
+            col = mix(col, vec3(1.0), (1.0 - smoothstep(-0.0015, 0.0015, lab)) * u_reveal);
+        }
+    }
+    return timerBar(col, px);
+}
+
+// ------------------------------------------------------------------ MODO 11: fondo para retos de texto (ASS dibuja el texto)
+vec3 textScene(vec2 px) {
+    vec2 p = (px - 0.5 * u_res) / u_res.x;
+    vec3 col = background(px);
+    float T = u_time * u_speed;
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        float d = abs(shapeSD(rot(p - ICENTER, T * (0.15 + 0.08 * fi) * ((i % 2 == 0) ? 1.0 : -1.0)), (0.20 + 0.13 * fi) / 0.36)) - 0.0015;
+        col = mix(col, u_accent, (1.0 - smoothstep(0.0, 0.004, d)) * 0.22 * u_pop);
+    }
     return timerBar(col, px);
 }
 
@@ -577,6 +658,9 @@ vec3 mainScene(vec2 px) {
     if (u_scene == 5) return swarmScene(px);
     if (u_scene == 6) return magicScene(px);
     if (u_scene == 7) return contrastScene(px);
+    if (u_scene == 8) return countScene(px);
+    if (u_scene == 9) return anomalyScene(px);
+    if (u_scene == 10) return textScene(px);
     return loopScene(px);
 }
 
