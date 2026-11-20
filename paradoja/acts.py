@@ -8,13 +8,14 @@ from pathlib import Path
 import numpy as np
 
 from . import texts_es as T
-from .config import MEMORY_LAYOUTS, SWARM_MAX, VideoSpec
+from .config import CAPTION_Y, COUNT_TOP_Y, MEMORY_LAYOUTS, SAFE_Y, SWARM_MAX, VideoSpec
 from .scene import (ILLUSIONS, SHAPES, TYPES, Act, Palette, _swarm_act, _swarm_positions, blocked_rows, swarm_clock)
 
 RIDDLES_PATH = Path(__file__).resolve().parent.parent / "content" / "acertijos.json"
 FULL_REVEAL_LAST = ("Ese era. ¿Cuántos acertaste?", "Ese era. ¿Los acertaste todos?")
 # retos cuya pregunta se muestra fija arriba (los de texto ya la tienen en el centro)
-CAPTION_TYPES = {"anomaly", "illusion", "ishihara", "magiceye", "contrast", "sync", "swarm", "count", "flicker", "memory"}
+CAPTION_TYPES = {"anomaly", "illusion", "ishihara", "magiceye", "contrast", "sync", "swarm", "count", "flicker", "memory",
+                 "cups", "simon", "digits"}
 MIN_DELTA_RANGE = 0.55          # dificultad: de 1.0 (facil) a 0.45 (dificil), nunca imposible
 
 
@@ -98,17 +99,29 @@ def _big(text: str) -> int:
     return int(min(170, 980 / (0.56 * max(longest, 1))))
 
 
-def _caption(text: str, S: float, length: float, rcap: str, accent: str) -> tuple:
+HOOK_END = 2.2          # el gancho ocupa el primer fotograma y los primeros 2.2 s del video
+
+
+def _hook_item(rng, plan, accent: str) -> tuple:
+    """Gancho en pantalla (0 - HOOK_END s) para que el primer fotograma ya tenga texto: (t0, t1, texto, tamaño, bgr, y)."""
+    pool = T.HOOK_TEXT[TYPES[plan[0][0]].category]
+    text = rng.choice(pool).format(N=len(plan))
+    lines = textwrap.wrap(text, 22)
+    size = int(min(72, 940 / (0.66 * max(len(x) for x in lines))))
+    return (0.0, HOOK_END, "\\N".join(lines), size, accent, CAPTION_Y)
+
+
+def _caption(text: str, S: float, length: float, rcap: str, accent: str, t0: float = 0.25) -> tuple:
     """Pregunta fija arriba durante la busqueda y respuesta corta durante la revelacion."""
     def fit(t):
         """Una sola linea (el HUD ocupa la esquina y la barra de tiempo queda justo debajo); solo se parte si es muy larga."""
         lines = textwrap.wrap(t, 38) if len(t) > 50 else [t]
         return "\\N".join(lines), int(max(34, min(50, 940 / (0.62 * max(len(x) for x in lines)))))
     q, qs = fit(text)
-    items = [(0.25, S, q, qs, "", 215)]
+    items = [(t0, S, q, qs, "", CAPTION_Y)]
     if rcap:
         r, rs = fit(rcap)
-        items.append((S, length - 0.1, r, rs, accent, 215))
+        items.append((S, length - 0.1, r, rs, accent, CAPTION_Y))
     return tuple(items)
 
 
@@ -257,19 +270,26 @@ def _count(rng, ctx, a, st):
     s_end = (S - 2.0) * cspd
     pa = np.zeros((SWARM_MAX, 4), "f4")
     pb = np.zeros((SWARM_MAX, 4), "f4")
-    placed = []                                    # posiciones finales (figuras detenidas) ya aceptadas
-    for k in range(total):
-        ymin = 0.17 if match[k] else 0.09          # las que se cuentan, bien lejos de la franja de subtitulos
-        for _ in range(400):
-            pa[k] = (rng.uniform(.18, .44), rng.uniform(.18, .50), rng.uniform(.5, 1.4), rng.uniform(.5, 1.4))
-            pb[k, 0], pb[k, 1] = rng.uniform(0, math.tau), rng.uniform(0, math.tau)
-            pos = _swarm_positions(pa[k:k + 1], pb[k:k + 1], 1, s_end)[0]
-            if abs(pos[1]) > ymin and all(math.dist(pos, q) > (0.12 if match[k] or match[j] else 0.085)
-                                          for j, q in enumerate(placed)):
-                break
+    for _attempt in range(40):
+        placed = {}                                # posiciones finales (figuras detenidas) ya aceptadas
+        for k in sorted(range(total), key=lambda j: not match[j]):      # primero las que se cuentan: son las exigentes
+            for _ in range(500):
+                pa[k] = (rng.uniform(.18, .44), rng.uniform(.18, .50), rng.uniform(.5, 1.4), rng.uniform(.5, 1.4))
+                pb[k, 0], pb[k, 1] = rng.uniform(0, math.tau), rng.uniform(0, math.tau)
+                pos = _swarm_positions(pa[k:k + 1], pb[k:k + 1], 1, s_end)[0]
+                y = pos[1]
+                # fuera de la franja de subtitulos; las contadas, ademas sobre la pregunta fija / zona de la app y con
+                # su numero (que sale encima de la figura) fuera de los subtitulos
+                where = (COUNT_TOP_Y <= y <= -0.10 or 0.17 <= y <= SAFE_Y[1]) if match[k] else abs(y) > 0.09
+                if where and all(math.dist(pos, q) > (0.12 if match[k] or match[j] else 0.085) for j, q in placed.items()):
+                    break
+            else:
+                break                              # no cabe: se reintenta todo
+            placed[k] = tuple(pos)
         else:
-            raise RuntimeError("conteo: no hay hueco para colocar las figuras")
-        placed.append(tuple(pos))
+            break
+    else:
+        raise RuntimeError("conteo: no hay hueco para colocar las figuras")
     for k, (sh, co) in enumerate(items):
         pb[k, 2], pb[k, 3] = sh, T.NAMED_COLORS[co][2]
     gr = T.g(sT)
@@ -300,7 +320,7 @@ def _flicker(rng, ctx, a, st):
     kind = _pick(rng, [k for k in allowed if k != st.get("last_kind")] or allowed, st.setdefault("kinds", []))
     st["last_kind"] = kind
     target = _grid_target(rng, ctx.cols, ctx.rows, ctx.cell, st)
-    instr = "¿Qué cambia entre una imagen y la otra?" if a["i"] else "¿Qué cambia?"
+    instr = "¿Qué cambia entre las dos imágenes?" if a["i"] else "¿Qué cambia?"
     reveal = T.KIND_REVEAL[kind] + " ¿Lo viste?"
     return dict(kind=kind, delta=1.0 - 0.4 * prog, target=target, p=(rng.random(), rng.random()), question=instr,
                 rcap=T.KIND_REVEAL[kind].upper(),
@@ -319,7 +339,7 @@ def _memory(rng, ctx, a, st):
     first = [(0.15, rng.choice(T.HOOK_SHORT)), (1.55, "Memoriza las figuras.")] if (i == 0 and S >= 8.2) else \
         [(0.30, f"{T.SPOKEN_LABEL['memory']} {T.NUMS[i]}. Memoriza las figuras.")]
     return dict(kind=kind, delta=1.0 - 0.4 * prog, target=target, p=(rng.random(), rng.random()),
-                grid=(cols, rows, cell, 0), question="Memoriza las figuras y encuentra el cambio",
+                grid=(cols, rows, cell, 0), question="Memoriza y encuentra el cambio",
                 rcap=T.KIND_REVEAL[kind].upper(),
                 answer=f"fila {target[1] + 1}, columna {target[0] + 1}: {T.KIND_REVEAL[kind].rstrip('.').lower()}",
                 voice=tuple(first + [(3.1, "Ahora, ¿cuál cambió?"), (S + 0.25, reveal)]))
@@ -452,10 +472,93 @@ def _riddle(rng, ctx, a, st):
     return dict(sym=idx, p=(rng.random(), rng.random()), items=items, question=q, answer=ans, voice=voice)
 
 
+# --- vasos (¿dónde está la bola?)
+def _cups(rng, ctx, a, st):
+    """Intercambios de vasos con arco: empiezan a los 2 s, aceleran, y terminan 2.2 s antes de revelar."""
+    S, prog, i = a["S"], a["prog"], a["i"]
+    nc = 3 if prog < 0.5 else 4
+    t0, t_end = 2.0, S - 2.2
+    dur0 = 0.62 - 0.22 * prog
+    swaps, t, last = [], t0, None
+    while len(swaps) < 36:
+        dur = max(0.26, dur0 * (1.0 - 0.3 * min(1.0, (t - t0) / max(t_end - t0, 1.0))) * rng.uniform(0.92, 1.08))
+        if t + dur > t_end:
+            break
+        pair = tuple(rng.sample(range(nc), 2))
+        if set(pair) == last:                    # no repetir el mismo intercambio seguido
+            continue
+        swaps.append((t, dur, pair[0], pair[1]))
+        last = set(pair)
+        t += dur + 0.05
+    ball = rng.randrange(nc)
+    slot = ball
+    for _, _, x, y in swaps:
+        slot = y if slot == x else x if slot == y else slot
+    pa = np.zeros((SWARM_MAX, 4), "f4")
+    for k, sw in enumerate(swaps):
+        pa[k] = sw
+    instr = "Sigue la bola."
+    voice = ([(0.15, rng.choice(T.HOOK_SHORT)), (1.8, instr)] if i == 0 and S >= 8.2
+             else [(0.30, f"{T.SPOKEN_LABEL['cups']} {T.NUMS[i]}. {instr}")])
+    if S >= 9.0:
+        voice.append((4.3, rng.choice(T.CUPS_MID)))
+    voice += [(S - 1.5, "¿Dónde está?"),
+              (S + 0.25, f"Estaba en el {T.num_es(slot + 1)}. " + ("¿Cuántos acertaste?" if a["last"] else "¿La seguiste?"))]
+    return dict(n=len(swaps), q=(float(nc), float(ball)), arrays={"u_pa": pa.tobytes()}, p=(S - 2.0, rng.random()),
+                question="¿En qué vaso quedó la bola?", rcap=f"ESTABA EN EL {slot + 1}",
+                answer=f"vaso {slot + 1} de {nc} ({len(swaps)} cambios)", voice=tuple(voice))
+
+
+# --- Simón (recuerda el orden)
+def _simon(rng, ctx, a, st):
+    S, prog, i = a["S"], a["prog"], a["i"]
+    period, t0 = 0.80 - 0.12 * prog, 1.2
+    L = max(3, min(3 + round(3 * prog), int((S - 2.8 - t0) / period)))
+    seq = [rng.randrange(4)]
+    while len(seq) < L:
+        x = rng.randrange(4)
+        if x != seq[-1] or rng.random() < 0.25:
+            seq.append(x)
+    asked = rng.randint(2, L)                    # el primero es demasiado facil de adivinar
+    pad = seq[asked - 1] + 1
+    pa = np.zeros((SWARM_MAX, 4), "f4")
+    for k, x in enumerate(seq):
+        pa[k, 0] = x
+    ordinal = T.ORDINALS[asked - 1]
+    question = f"¿Qué número fue el {ordinal}?"
+    voice = _first(rng, i, "simon", S, "Memoriza el orden.") + [
+        (S - 2.4, question), (S + 0.25, f"Fue el {T.num_es(pad)}. " + ("¿Cuántos acertaste?" if a["last"] else "¿Lo recordaste?"))]
+    return dict(n=L, q=(period, t0), arrays={"u_pa": pa.tobytes()}, p=(float(asked), rng.random()), question=question,
+                rcap=f"FUE EL {pad}", answer=f"secuencia {'-'.join(str(x + 1) for x in seq)}; el {ordinal} fue el {pad}",
+                voice=tuple(voice))
+
+
+# --- número distinto (pares de dígitos de 7 segmentos que se parecen, de fácil a difícil)
+DIGIT_PAIRS = (((2, 5), (4, 2), (7, 2), (1, 5), (3, 4)),                        # fáciles: 3-4 segmentos de diferencia
+               ((0, 6), (3, 5), (2, 3), (9, 6), (0, 9)),                        # medios: 2 segmentos
+               ((8, 0), (8, 6), (8, 9), (6, 5), (9, 3), (5, 9), (1, 7)))        # difíciles: 1 segmento
+
+
+def _digits(rng, ctx, a, st):
+    prog, i, S = a["prog"], a["i"], a["S"]
+    tier = 0 if prog < 0.34 else 1 if prog < 0.67 else 2
+    base, odd = rng.choice(DIGIT_PAIRS[tier])
+    if rng.random() < 0.5:
+        base, odd = odd, base
+    target = _grid_target(rng, ctx.cols, ctx.rows, ctx.cell, st)
+    instr = "Encuentra el número distinto."
+    reveal = f"Era el {T.num_es(odd)}. " + ("¿Cuántos acertaste?" if a["last"] else "¿Lo viste?")
+    return dict(sym=base, shape=odd, target=target, grid=(ctx.cols, ctx.rows, ctx.cell, 0),
+                p=(rng.random(), rng.random()), question=instr, rcap=f"ERA EL {odd}",
+                answer=f"fila {target[1] + 1}, columna {target[0] + 1}: un {odd} entre {base}",
+                voice=_voice(rng, i, "digits", S, instr, T.DIGITS_MID, reveal))
+
+
 _BUILDERS = {
     "anomaly": _anomaly, "illusion": _illusion, "sync": _sync, "ishihara": _ishihara, "swarm": _swarm,
     "magiceye": _magiceye, "contrast": _contrast, "count": _count, "flicker": _flicker, "memory": _memory,
     "stroop": _stroop, "math": _math, "sequence": _sequence, "riddle": _riddle,
+    "cups": _cups, "simon": _simon, "digits": _digits,
 }
 
 
@@ -463,6 +566,7 @@ def build_acts(rng, mode: str, ctx: Ctx) -> tuple:
     plan = _plan(rng, mode, ctx.avail)
     n = len(plan)
     accent = _bgr(ctx.pal.accent)
+    hook = _hook_item(rng, plan, accent)
     state, acts = {}, []
     for i, (ty, start, length, S) in enumerate(plan):
         prog = i / (n - 1) if n > 1 else 0.0
@@ -470,7 +574,10 @@ def build_acts(rng, mode: str, ctx: Ctx) -> tuple:
         fields = _BUILDERS[ty](rng, ctx, a, state.setdefault(ty, {}))
         rcap = fields.pop("rcap", "")
         if ty in CAPTION_TYPES:
-            fields["items"] = _caption(fields["question"], S, length, rcap, accent) + tuple(fields.get("items", ()))
+            fields["items"] = _caption(fields["question"], S, length, rcap, accent,
+                                       HOOK_END + 0.1 if i == 0 else 0.25) + tuple(fields.get("items", ()))
+        if i == 0:
+            fields["items"] = (hook,) + tuple(fields.get("items", ()))
         fields.setdefault("grid", (ctx.cols, ctx.rows, ctx.cell, int(ctx.hex_layout)))
         fields.setdefault("delta", 1.0 - MIN_DELTA_RANGE * prog)
         fields["hue"] = (ctx.pal.hues[(ctx.hue_off + i) % len(ctx.pal.hues)] + ctx.hue_jit) % 1.0

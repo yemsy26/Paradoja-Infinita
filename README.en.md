@@ -22,7 +22,7 @@ audio, so each video is structurally different yet fully **reproducible**.
 - **Free neural voice** via [edge-tts](https://github.com/rany2/edge-tts) with per-word timing for large, centered,
   karaoke-style subtitles.
 - **Procedural audio** (drone + effects) synthesized with NumPy: no copyrighted music.
-- **14 challenge types + mixed video + perfect loop**, with a smart picker that avoids repeating challenges, an
+- **17 challenge types + mixed video + perfect loop**, with a smart picker that avoids repeating challenges, an
   interactive menu and a scriptable CLI.
 - **Publish-ready metadata**: each video produces a `.txt` with title, description (with a comment call-to-action),
   hashtags and the challenge answers.
@@ -44,7 +44,10 @@ and closes with a call to comment the score.
 | Reflexes | Synchronization | A shape spins at extreme speed and fits a silhouette for **exactly one frame** |
 | Attention | Swarm tracker | One red particle for 2 s, it blends in, the swarm mixes and stops |
 | Attention | Counting | "How many blue triangles?" among moving shapes; the reveal numbers the right ones |
+| Attention | Cups | The shell game: a ball under one cup, the cups swap faster and faster, the reveal shows where it ended |
 | Attention | What changed | Two images flicker and one shape changes (color, size, rotation, disappears...) |
+| Visual | Odd number | Grid of near-identical digits (8/0, 6/5, 9/3...) with one different; pairs get closer each round |
+| Memory | Simon | Four numbered pads light up in sequence (3-6 steps); one step is asked and the reveal replays the sequence |
 | Memory | Memory | Memorize for 3 s, blank screen, one shape changed |
 | Mind | Stroop effect | Color words printed in a different ink: say the ink color |
 | Mind | Math | Generated expressions with an order-of-operations trap |

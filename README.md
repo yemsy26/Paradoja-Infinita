@@ -41,17 +41,19 @@ guion narrado y audio, de modo que cada video es estructuralmente distinto y a l
 - **Voz neuronal gratuita** con [edge-tts](https://github.com/rany2/edge-tts), con tiempos por palabra para sincronizar
   subtítulos grandes, centrados y con la palabra activa resaltada.
 - **Audio procedural** (drone + efectos) generado con NumPy: sin música con derechos de autor.
-- **14 tipos de reto + video mixto + bucle perfecto**, con elección inteligente que evita repetir retos, menú
+- **17 tipos de reto + video mixto + bucle perfecto**, con elección inteligente que evita repetir retos, menú
   interactivo o CLI para automatizar.
-- **Metadata lista para publicar**: cada video genera un `.txt` con título, descripción (con llamada a comentar),
-  hashtags y las respuestas del reto.
+- **Pensado para retención y alcance**: el primer fotograma ya lleva el reto y un gancho en pantalla, el texto respeta
+  la zona segura de Reels y cada video exporta una **portada** (`*_portada.jpg`) para usarla como miniatura.
+- **Metadata lista para publicar**: cada video genera un `.txt` con título, descripción (con llamada a comentar y a
+  compartir), comentario fijado sugerido, hashtags y las respuestas del reto.
 - Duración fija de **63 s** (rango válido 61,5–65 s) para cumplir el mínimo de monetización In-Stream.
 
 ## Retos disponibles
 
 Un video de **tipo único** repite el mismo reto (4-7 veces, con dificultad creciente). El **video mixto** combina de 5 a
 7 retos *distintos*. Todos empiezan con el reto en el segundo 0, revelan la respuesta al final de cada prueba y cierran
-con una llamada a comentar el puntaje.
+con una llamada a comentar la nota, compartir y seguir la cuenta.
 
 | Categoría | Reto | Mecánica | Qué se pide en comentarios |
 |---|---|---|---|
@@ -63,7 +65,10 @@ con una llamada a comentar el puntaje.
 | Reflejos | **Sincronización** | La figura gira a velocidad extrema y encaja en una silueta en **un solo frame** | ¿En qué número del contador pausaste? |
 | Atención | **Seguimiento** | Una partícula roja 2 s, se iguala, el enjambre se mezcla y se detiene | ¿Dónde quedó el punto rojo? |
 | Atención | **Conteo** | «¿Cuántos triángulos azules hay?» entre figuras en movimiento; la revelación numera las correctas | Tu número |
+| Atención | **Vasos** | El juego de los vasos: una bola bajo un vaso, los vasos se intercambian cada vez más rápido y se revela dónde quedó | 1, 2 o 3 (el hueco) |
 | Atención | **Qué cambió** | Dos imágenes parpadean y una figura cambia (color, tamaño, giro, desaparece…) | Fila y columna del cambio |
+| Visual | **Número distinto** | Rejilla de dígitos casi iguales (8/0, 6/5, 9/3…) con uno distinto; los pares se parecen más en cada prueba | ¿En qué segundo lo viste? |
+| Memoria | **Simón** | Cuatro pads numerados se iluminan en secuencia (3-6 pasos); se pregunta por un paso y la revelación repite la secuencia | El número del pad |
 | Memoria | **Memoria** | Memoriza 3 s, pantalla en blanco y la figura cambió | Qué figura cambió |
 | Mente | **Efecto Stroop** | Palabras de color con tinta distinta: di el color de la tinta | ¿Cuántas fallaste? |
 | Mente | **Cálculo** | Operaciones generadas con «trampa» de orden (el resultado obvio es incorrecto) | Tu resultado |
@@ -142,7 +147,7 @@ python main.py
 ```text
   [1] Aleatorio inteligente   (RECOMENDADO) elige el reto menos usado recientemente y evita repetir
   [2] Video mixto             5-7 mini-retos distintos en 1 video
-  [3] Elegir un reto concreto (14 retos + bucle)
+  [3] Elegir un reto concreto (17 retos + bucle)
   [4] Estadisticas y ultimos videos
   [0] Salir
 ```
@@ -179,6 +184,7 @@ output/
 └── 2026-11-15/
     └── anomalia_estrella_3380163066/
         ├── anomalia_estrella_3380163066.mp4
+        ├── anomalia_estrella_3380163066_portada.jpg
         └── anomalia_estrella_3380163066.txt
 ```
 
@@ -189,7 +195,9 @@ El nombre sigue el patrón `<formato>_<detalle>_<semilla>` (por ejemplo `ilusion
 TIPO DE VIDEO:       Reto de Anomalía
 VARIABLES:           semilla, paleta, figura, respuestas de cada prueba (control interno)
 TÍTULO SUGERIDO:     ...
-DESCRIPCIÓN (COPY):  ... (con llamada a comentar adaptada al modo)
+DESCRIPCIÓN (COPY):  ... (con llamada a comentar adaptada al modo + compartir + seguir)
+COMENTARIO FIJADO:   pregunta sencilla de una cifra para pegar y fijar
+PORTADA:             <slug>_portada.jpg (miniatura con el gancho a pantalla completa)
 HASHTAGS:            3-5 etiquetas del modo, siempre #ParadojaInfinita
 ```
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .config import SUB_BAND, SWARM_MAX, LAYOUTS, VideoSpec
+from .config import ANSWER_TOP, BOTTOM_SAFE, LAYOUTS, SAFE_Y, SUB_BAND, SWARM_MAX, VideoSpec
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,9 @@ TYPES = {t.name: t for t in (
     TypeInfo("math", 10, "CÁLCULO", 11.0, True, "Mente", "Cálculo", "Operaciones con trampa de orden", 3.5),
     TypeInfo("sequence", 10, "SECUENCIA", 11.0, True, "Mente", "Secuencia", "¿Qué número sigue?", 3.5),
     TypeInfo("riddle", 10, "ACERTIJO", 12.5, False, "Mente", "Acertijo", "Acertijos y preguntas trampa", 3.5),
+    TypeInfo("cups", 11, "VASOS", 12.0, False, "Atención", "Vasos", "¿En qué vaso quedó la bola?"),
+    TypeInfo("simon", 12, "SIMÓN", 11.5, False, "Memoria", "Simón", "Recuerda el orden en que se iluminan los pads"),
+    TypeInfo("digits", 13, "NÚMEROS", 11.0, True, "Visual", "Número distinto", "Encuentra el número diferente"),
 )}
 # formatos de video: cada tipo por separado + bucle perfecto + mix de tipos distintos
 MODES = (*TYPES, "loop", "mix")
@@ -179,13 +182,20 @@ def _swarm_act(rng, n_part, vmax, S):
             pb[k, 0], pb[k, 1] = rng.uniform(0, math.tau), rng.uniform(0, math.tau)
         pos = _swarm_positions(pa, pb, n_part, s_end)
         dist = np.linalg.norm(pos[1:] - pos[0], axis=1).min()
-        if abs(pos[0, 1]) > 0.11 and dist > 0.07:
+        if abs(pos[0, 1]) > 0.11 and SAFE_Y[0] <= pos[0, 1] <= SAFE_Y[1] and dist > 0.07:
             return {"u_pa": pa.tobytes(), "u_pb": pb.tobytes()}
 
 
 def blocked_rows(rows: int, cell: int, height: int = 1920) -> tuple:
+    """Filas donde NO puede caer la respuesta: bajo los subtitulos o fuera de la zona segura de la app."""
     top = (height - rows * cell) / 2
-    return tuple(r for r in range(rows) if top + r * cell < SUB_BAND[1] and top + (r + 1) * cell > SUB_BAND[0])
+    out = []
+    for r in range(rows):
+        y0, y1 = top + r * cell, top + (r + 1) * cell
+        centre = (y0 + y1) / 2
+        if (y0 < SUB_BAND[1] and y1 > SUB_BAND[0]) or not ANSWER_TOP + 0.4 * cell <= centre <= BOTTOM_SAFE - 20:
+            out.append(r)
+    return tuple(out)
 
 
 def build_scene(seed: int, mode: str, spec: VideoSpec) -> Scene:
@@ -198,7 +208,7 @@ def build_scene(seed: int, mode: str, spec: VideoSpec) -> Scene:
     shape = rng.randrange(len(SHAPES))
     cols, rows, cell = rng.choice(LAYOUTS)
     hex_layout = rng.random() < 0.4
-    outro_len = rng.choice((3.5, 4.0))
+    outro_len = rng.choice((4.0, 4.5))        # cierre: nota, compartir y seguir
     hue_off = rng.randrange(len(pal.hues))
     hue_jit = rng.uniform(-0.02, 0.02)
 

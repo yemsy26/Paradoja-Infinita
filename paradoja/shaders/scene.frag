@@ -19,6 +19,7 @@ uniform vec3  u_lint, u_bg1, u_bg2, u_tuna, u_tunb, u_accent;
 uniform int   u_pass, u_sym, u_actshape, u_n;      // u_pass=1: pasada de profundidad (ojo magico)
 uniform float u_tau, u_hl, u_flick;                // u_flick: 0 imagen A, 1 imagen B, 2 vacio
 uniform vec2  u_cnt;                               // conteo: filtro de figura (-1 = cualquiera), filtro de tono
+uniform vec2  u_q;                                 // parametros del reto: vasos, Simon (ver cada escena)
 uniform vec2  u_me;                                // ojo magico: periodo (px), desplazamiento maximo (px)
 uniform float u_dot;                               // ojo magico: tamaño del punto (px)
 uniform vec4  u_pa[40], u_pb[40];                  // enjambre (40 = SWARM_MAX)
@@ -651,6 +652,155 @@ vec3 textScene(vec2 px) {
     return timerBar(col, px);
 }
 
+// ------------------------------------------------------------------ MODO 11: vasos (¿donde esta la bola?)
+// u_q = (numero de vasos, vaso que tapa la bola); u_pa[k] = (inicio, duracion, hueco A, hueco B) de cada intercambio;
+// u_actp.x = instante en que aparecen los numeros de hueco. Cada vaso reconstruye su posicion a partir de la lista.
+float cupSD(vec2 q) {                                  // vaso boca abajo (y hacia abajo): estrecho arriba, aro ancho abajo
+    float hw = mix(0.048, 0.074, clamp((q.y + 0.085) / 0.17, 0.0, 1.0));
+    vec2 d = vec2(abs(q.x) - hw + 0.008, abs(q.y) - 0.085 + 0.008);
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - 0.008;
+}
+float cupSlotX(float k, float nc) { return (k - 0.5 * (nc - 1.0)) * (nc > 3.5 ? 0.25 : 0.30); }
+
+vec3 cupsScene(vec2 px) {
+    vec2 p = (px - 0.5 * u_res) / u_res.x;
+    vec3 col = background(px);
+    float nc = u_q.x, t = u_actph, CY = -0.15;
+    const float KS = 1.2;                              // escala de los vasos
+    int ball = int(u_q.y + 0.5);
+    float finalSlot = 0.0;
+    vec2 bpos = vec2(0.0);
+    for (int c = 0; c < 5; c++) {
+        if (float(c) >= nc) break;
+        float sl = float(c);
+        float x = cupSlotX(sl, nc), dy = 0.0;
+        for (int i = 0; i < 40; i++) {
+            if (i >= u_n) break;
+            vec4 sw = u_pa[i];
+            if (t < sw.x) break;
+            float s = clamp((t - sw.x) / sw.y, 0.0, 1.0);
+            bool isA = abs(sl - sw.z) < 0.1, isB = abs(sl - sw.w) < 0.1;
+            if (!isA && !isB) continue;
+            float to = isA ? sw.w : sw.z;
+            if (s < 1.0) {                              // intercambio en curso: arco hacia delante / atras
+                float e = s * s * (3.0 - 2.0 * s);
+                x = mix(cupSlotX(sl, nc), cupSlotX(to, nc), e);
+                dy = (isA ? 1.0 : -1.0) * 0.045 * sin(PI * s);
+                break;
+            }
+            sl = to;
+            x = cupSlotX(sl, nc);
+        }
+        bool isBall = (c == ball);
+        float lift = isBall ? max(1.0 - smoothstep(1.2, 1.7, t), u_reveal) : 0.0;
+        if (isBall) { finalSlot = sl; bpos = vec2(x, CY); }
+        // sombra en el suelo
+        vec2 sq = p - vec2(x, CY + 0.108 + dy * 0.4);
+        col *= 1.0 - 0.35 * u_pop * exp(-(sq.x * sq.x / 0.0030 + sq.y * sq.y / 0.00016));
+        if (isBall) {                                   // la bola, en el suelo bajo el vaso
+            float db = length(p - vec2(x, CY + 0.066 + dy)) - 0.0336 * u_pop;
+            vec3 bc = mix(vec3(1.0), u_accent, 0.35);
+            col += bc * 0.25 * exp(-max(db, 0.0) * 30.0) * lift;
+            col = mix(col, bc, 1.0 - smoothstep(-0.0015, 0.0015, db));
+        }
+        vec2 q = p - vec2(x, CY + dy - 0.13 * lift);
+        float d = cupSD(q / (KS * max(u_pop, 0.05))) * KS * u_pop;
+        float m = 1.0 - smoothstep(-0.0015, 0.0015, d);
+        vec3 base = hsv2rgb(vec3(u_hue, u_sv.x * 0.9, 0.86));
+        vec3 cc = base * (0.80 + 0.30 * (0.5 - q.y / (0.17 * KS)));
+        cc += 0.22 * smoothstep(0.048, 0.074, q.y);                           // aro inferior mas claro
+        cc += 0.20 * exp(-pow((q.x + 0.026) / 0.012, 2.0)) * step(q.y, 0.06); // brillo lateral
+        float dim = isBall ? 1.0 : mix(1.0, 0.45, u_reveal);
+        col = mix(col, cc * dim, m);
+    }
+    // aro y numeros de hueco (para responder 1, 2 o 3 en los comentarios)
+    col += u_accent * exp(-pow((length(p - bpos - vec2(0.0, 0.03)) - 0.14) / 0.004, 2.0)) * u_reveal;
+    float show = max(smoothstep(u_actp.x, u_actp.x + 0.3, t), u_reveal);
+    for (int k = 0; k < 5; k++) {
+        if (float(k) >= nc) break;
+        vec2 nq = p - vec2(cupSlotX(float(k), nc), -0.426);
+        float dn = numSD(nq / 0.055, k + 1) * 0.055;
+        float isFinal = (abs(float(k) - finalSlot) < 0.1) ? u_reveal : 0.0;
+        vec3 nc3 = mix(vec3(1.0), u_accent, isFinal);
+        col = mix(col, vec3(0.0), (1.0 - smoothstep(-0.002, 0.012, dn)) * 0.5 * show);
+        col = mix(col, nc3, (1.0 - smoothstep(-0.0015, 0.0015, dn)) * show);
+    }
+    return timerBar(col, px);
+}
+
+// ------------------------------------------------------------------ MODO 12: Simon (recuerda el orden)
+// u_q = (periodo de cada destello, inicio); u_pa[k].x = pad que se enciende en el paso k; u_actp.x = paso por el que se
+// pregunta (1..n). Al revelar se repite la secuencia mostrando el numero de paso y se marca el pad preguntado.
+vec3 simonScene(vec2 px) {
+    vec2 p = (px - 0.5 * u_res) / u_res.x;
+    vec3 col = background(px);
+    bool mono = u_sv.x < 0.01;
+    int lit = -1, stepNo = 0;
+    float amt = 0.0;
+    float ft = (u_reveal < 0.01) ? (u_actph - u_q.y) / u_q.x : (u_revt - 0.25) / 0.42;
+    if (ft >= 0.0 && ft < float(u_n)) {
+        float fr = fract(ft);
+        lit = int(u_pa[int(ft)].x + 0.5);
+        amt = smoothstep(0.0, 0.06, fr) * (1.0 - smoothstep(0.62, 0.74, fr));
+        if (u_reveal > 0.01) stepNo = int(ft) + 1;
+    }
+    int asked = int(u_pa[int(u_actp.x + 0.5) - 1].x + 0.5);
+    for (int i = 0; i < 4; i++) {
+        vec2 c = vec2((float(i % 2) - 0.5) * 0.25, -0.265 + (float(i / 2) - 0.5) * 0.25);
+        vec2 q = p - c;
+        float sz = 0.108 * u_pop;
+        vec2 dd = abs(q) - vec2(sz - 0.02);
+        float d = length(max(dd, 0.0)) + min(max(dd.x, dd.y), 0.0) - 0.02;
+        float m = 1.0 - smoothstep(-0.0015, 0.0015, d);
+        float a = (lit == i) ? amt : 0.0;
+        vec3 base = mono ? vec3(0.62) : hsv2rgb(vec3(fract(u_hue + 0.25 * float(i)), 0.85, 1.0));
+        vec3 pc = base * (0.30 + 0.85 * a);
+        col += base * a * 0.40 * exp(-max(d, 0.0) * 22.0);
+        col = mix(col, pc, m);
+        int shown = (lit == i && stepNo > 0) ? stepNo : i + 1;
+        float dn = numSD(q / 0.06, shown) * 0.06;
+        col = mix(col, vec3(1.0), (1.0 - smoothstep(-0.0015, 0.0015, dn)) * (0.55 + 0.45 * a) * u_pop);
+        float ring = exp(-pow((d - 0.012) / 0.005, 2.0)) * ((asked == i) ? u_reveal : 0.0);
+        col = mix(col, u_accent, ring);
+    }
+    return timerBar(col, px);
+}
+
+// ------------------------------------------------------------------ MODO 13: numero distinto
+// u_sym = digito base, u_actshape = digito distinto, u_target = celda del distinto.
+vec3 digitsScene(vec2 px) {
+    vec3 col = background(px);
+    float cell = u_cell;
+    vec2 origin = vec2(0.5 * (u_res.x - u_grid.x * cell), 0.5 * (u_res.y - u_grid.y * cell));
+    vec2 g = (px - origin) / cell;
+    vec2 id = floor(g);
+    if (id.x >= 0.0 && id.x < u_grid.x && id.y >= 0.0 && id.y < u_grid.y) {
+        vec2 f = fract(g) - 0.5;
+        bool odd = all(equal(id, u_target));
+        float h = hash21(id + u_rnd.w * 31.7);
+        float T = u_time * u_speed;
+        vec2 q = rot(f - 0.5 * motionOf(id), (h - 0.5) * 0.22 + 0.05 * sin(T * 1.3 + h * TAU));
+        float H = 0.62 * u_pop;
+        float d = numSD(q / max(H, 1e-3), odd ? u_actshape : u_sym) * H;
+        float aa = 1.5 / u_cell;
+        float m = 1.0 - smoothstep(-aa, aa, d);
+        vec3 c = hsv2rgb(vec3(u_hue + (h - 0.5) * 0.01, u_sv.x, u_sv.y + (hash21(id + 9.1) - 0.5) * 0.05));
+        float dim = odd ? 1.0 : mix(1.0, 0.35, u_reveal);
+        col += hsv2rgb(vec3(u_hue, 0.6 * u_sv.x, 1.0)) * 0.14 * exp(-max(d, 0.0) * 16.0) * u_pop * dim;
+        col = mix(col, c * dim, m);
+    }
+    vec2 tc = origin + (u_target + 0.5) * cell;
+    float dist = length(px - tc) / cell;
+    float ring = exp(-pow((dist - (0.50 + 0.03 * sin(u_time * 9.0))) / 0.018, 2.0));
+    float ripple = 0.0;
+    for (int i = 0; i < 3; i++) {
+        float ph = fract(u_revt * 0.7 + float(i) / 3.0);
+        ripple += exp(-pow((dist - (0.4 + ph * 1.6)) / 0.03, 2.0)) * (1.0 - ph);
+    }
+    col += (u_accent * ring + u_accent * ripple * 0.5) * u_reveal;
+    return timerBar(col, px);
+}
+
 vec3 mainScene(vec2 px) {
     if (u_scene == 0) return anomalyScene(px);
     if (u_scene == 1) return illusionScene(px);
@@ -662,6 +812,9 @@ vec3 mainScene(vec2 px) {
     if (u_scene == 8) return countScene(px);
     if (u_scene == 9) return anomalyScene(px);
     if (u_scene == 10) return textScene(px);
+    if (u_scene == 11) return cupsScene(px);
+    if (u_scene == 12) return simonScene(px);
+    if (u_scene == 13) return digitsScene(px);
     return loopScene(px);
 }
 

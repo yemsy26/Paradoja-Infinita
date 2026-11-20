@@ -78,6 +78,11 @@ def generate(mode: str, seed: int, args) -> int:
         print(f"FFmpeg fallo (codigo {rc}). Log: {work / 'ffmpeg.log'}")
         return rc
 
+    # portada: el fotograma con el gancho a pantalla completa (sube esta imagen como miniatura del Reel)
+    cover = out.with_name(f"{slug}_portada.jpg")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "1.0", "-i", str(out), "-frames:v", "1", "-q:v", "2", str(cover)],
+                   capture_output=True)
+
     history = load_history(args.out)
     meta, title = write_metadata(out.with_suffix(".txt"), scene, tl, out.name, recent_titles(history))
     append_history(args.out, entry_for(scene, slug, title))
@@ -90,7 +95,8 @@ def generate(mode: str, seed: int, args) -> int:
     print("  " + " | ".join(info))
     if not args.keep_work:
         shutil.rmtree(work, ignore_errors=True)
-    print(f"Listo en {time.perf_counter() - t0:.1f}s -> {out}\n  Metadata -> {meta}")
+    print(f"Listo en {time.perf_counter() - t0:.1f}s -> {out}\n  Metadata -> {meta}"
+          + (f"\n  Portada  -> {cover}" if cover.exists() else ""))
     return 0
 
 

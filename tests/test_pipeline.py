@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from paradoja import catalog
-from paradoja.config import SUB_BAND, VideoSpec
+from paradoja.config import ANSWER_TOP, BOTTOM_SAFE, CAPTION_Y, COUNT_TOP_Y, HUD_Y, SAFE_Y, SUB_BAND, TOP_SAFE, VideoSpec
 from paradoja.metadata import MODE_SLUG, video_slug, write_metadata
 from paradoja.scene import MODES, TYPES, _swarm_positions, blocked_rows, build_scene, swarm_clock
 from paradoja.script_es import build_script
@@ -258,21 +258,69 @@ def test_count_frozen_figures_are_countable(seed):
             match &= np.abs(pb[:a.n, 2] - shape_f) < 0.5
         if hue_f >= 0:
             match &= np.abs(pb[:a.n, 3] - hue_f) < 0.02
-        assert (np.abs(pos[match, 1]) > 0.17).all() and (np.abs(pos[:, 1]) > 0.09).all()
+        assert ((pos[match, 1] <= -0.10) | (pos[match, 1] >= 0.17)).all() and (np.abs(pos[:, 1]) > 0.09).all()
+        assert (pos[match, 1] >= COUNT_TOP_Y).all() and (pos[match, 1] <= SAFE_Y[1]).all()   # fuera de pregunta y de la app
         d = np.linalg.norm(pos[:, None] - pos[None], axis=2) + np.eye(a.n) * 9
         assert d.min() > 0.085 and d[match].min() > 0.12
 
 
 @pytest.mark.parametrize("mode", ACT_MODES)
 def test_every_visual_challenge_pins_its_question_and_answer(mode):
-    from paradoja.acts import CAPTION_TYPES
+    from paradoja.acts import CAPTION_TYPES, HOOK_END
     sc, _ = _make(mode, 42)
     for a in sc.acts:
         if a.type in CAPTION_TYPES:
-            top = [it for it in a.items if it[5] < 300]
-            assert top and top[0][0] < 0.5 and top[0][1] == pytest.approx(a.search)   # pregunta durante la busqueda
+            top = [it for it in a.items if it[5] == CAPTION_Y and it[0] > 0.0]       # sin el gancho del primer segundo
+            first_start = HOOK_END if a.index == 0 else 0.5
+            assert top and top[0][0] < first_start + 0.3 and top[0][1] == pytest.approx(a.search)   # pregunta en la busqueda
             assert any(it[0] == pytest.approx(a.search) for it in top)               # respuesta al revelar
             assert all(it[1] <= a.length for it in top)
+
+
+@pytest.mark.parametrize("mode", ACT_MODES)
+def test_first_frame_has_a_hook_and_the_challenge_is_already_on_screen(mode):
+    """Las miniaturas salian oscuras: el primer fotograma debe llevar gancho y el reto ya formado (u_pop = 1)."""
+    sc, tl = _make(mode, 7)
+    hook = [it for it in sc.acts[0].items if it[0] == 0.0]
+    assert len(hook) == 1 and hook[0][5] == CAPTION_Y and hook[0][1] >= 2.0
+    assert hook[0][2].replace(chr(92) + "N", " ").isupper() or any(c.isdigit() for c in hook[0][2])
+    assert tl.uniforms(0.0)["u_pop"] == pytest.approx(1.0)
+    assert tl.uniforms(sc.acts[1].start + 0.0)["u_pop"] < 0.01            # los demas actos si entran con transicion
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_answers_stay_inside_the_app_safe_zone(seed):
+    """Los botones y el pie de la app tapan la parte alta y baja: las respuestas se colocan entre TOP_SAFE y BOTTOM_SAFE."""
+    for mode in ("anomaly", "flicker", "memory"):
+        sc, _ = _make(mode, seed)
+        for a in sc.acts:
+            cols, rows, cell, _h = a.grid
+            top = (1920 - rows * cell) / 2
+            centre = top + (a.target[1] + 0.5) * cell
+            assert ANSWER_TOP + 0.4 * cell <= centre <= BOTTOM_SAFE, (mode, centre)
+    sc, _ = _make("swarm", seed)
+    for a in sc.acts:
+        pa = np.frombuffer(a.arrays["u_pa"], "f4").reshape(-1, 4)
+        pb = np.frombuffer(a.arrays["u_pb"], "f4").reshape(-1, 4)
+        y = _swarm_positions(pa, pb, a.n, swarm_clock(a.search, a.search, a.q[0]))[0, 1]
+        assert SAFE_Y[0] <= y <= SAFE_Y[1]
+
+
+@pytest.mark.parametrize("mode", ["anomaly", "mix", "stroop"])
+def test_screen_text_never_sits_under_the_app_header(mode):
+    from paradoja.subtitles import build_ass
+    sc, tl = _make(mode, 5)
+    for a in sc.acts:
+        assert all(it[5] >= TOP_SAFE for it in a.items)
+    assert HUD_Y - 12 >= TOP_SAFE and CAPTION_Y > HUD_Y
+
+
+def test_outro_asks_for_score_share_and_follow(tmp_path):
+    from paradoja.subtitles import build_ass
+    sc, tl = _make("anomaly", 11)
+    ass = build_ass(tmp_path / "s.ass", [], tl, SPEC).read_text("utf-8")
+    for needle in ("COMENTA TU NOTA", "ENVÍASELO A QUIEN NO LO ACIERTE", "SÍGUENOS", f"¿CUÁNTOS DE {len(sc.acts)} ACERTASTE?", "FINAL"):
+        assert needle in ass
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -299,5 +347,54 @@ def test_pinned_captions_are_single_line_and_fit(mode):
         sc, _ = _make(mode, seed)
         for a in sc.acts:
             for t0, t1, text, size, _c, y in a.items:
-                if y < 300:
+                if y == CAPTION_Y and t0 > 0.0:
                     assert chr(92) + "N" not in text and size >= 34 and len(text) * 0.62 * size <= 1020, (text, size)
+
+
+# --------------------------------------------------------------------------- v1.2.0: retos nuevos
+def test_new_challenges_are_registered():
+    for name, scene_id in (("cups", 11), ("simon", 12), ("digits", 13)):
+        assert name in TYPES and name in MODES and TYPES[name].scene_id == scene_id
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_cups_answer_matches_the_shuffle(seed):
+    sc, _ = _make("cups", seed)
+    for a in sc.acts:
+        pa = np.frombuffer(a.arrays["u_pa"], "f4").reshape(-1, 4)[: a.n]
+        nc, ball = int(a.q[0]), int(a.q[1])
+        slot, last_end = ball, 0.0
+        for t0, dur, x, y in pa:
+            x, y = int(x), int(y)
+            assert t0 >= last_end - 1e-3 and t0 >= 2.0 - 1e-3 and t0 + dur <= a.search - 2.2 + 1e-3
+            assert x != y and 0 <= x < nc and 0 <= y < nc
+            slot = y if slot == x else x if slot == y else slot
+            last_end = t0 + dur
+        assert a.n >= 4 and a.answer.startswith(f"vaso {slot + 1} de {nc}")
+        assert 3 <= nc <= 4 and a.p[0] < a.search                    # los numeros aparecen antes de revelar
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_simon_sequence_and_question_are_consistent(seed):
+    sc, tl = _make("simon", seed)
+    for a in sc.acts:
+        pa = np.frombuffer(a.arrays["u_pa"], "f4").reshape(-1, 4)[: a.n]
+        seq = [int(x) for x in pa[:, 0]]
+        period, t0 = a.q
+        assert 3 <= a.n <= 6 and all(0 <= x < 4 for x in seq)
+        assert t0 + a.n * period <= a.search - 2.4 + 1e-3           # la secuencia termina antes de la pregunta
+        asked = int(a.p[0])
+        assert 2 <= asked <= a.n and a.answer.endswith(f"fue el {seq[asked - 1] + 1}")
+    assert len([e for e in tl.sfx() if e[1] == "tick"]) >= sum(a.n for a in sc.acts)
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_digits_odd_differs_and_gets_harder(seed):
+    from paradoja.acts import DIGIT_PAIRS
+    sc, _ = _make("digits", seed)
+    pairs = [set(p) for tier in DIGIT_PAIRS for p in tier]
+    for a in sc.acts:
+        assert a.sym != a.shape and {a.sym, a.shape} in pairs and a.grid[3] == 0
+        assert a.target[1] not in blocked_rows(a.grid[1], a.grid[2])
+    assert {sc.acts[-1].sym, sc.acts[-1].shape} in [set(p) for p in DIGIT_PAIRS[2]]   # el ultimo, 1 segmento de diferencia
+    assert {sc.acts[0].sym, sc.acts[0].shape} in [set(p) for p in DIGIT_PAIRS[0]]

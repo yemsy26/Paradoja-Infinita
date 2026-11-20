@@ -15,11 +15,13 @@ MODE_LABEL = {
     "swarm": "Seguimiento de Enjambre", "count": "Reto de Conteo", "flicker": "¿Qué Cambió? (Detección de cambio)",
     "memory": "Reto de Memoria", "stroop": "Efecto Stroop", "math": "Cálculo con Trampa", "sequence": "Secuencia Numérica",
     "riddle": "Acertijos", "loop": "Bucle", "mix": "Video Mixto (varios retos)",
+    "cups": "Vasos (¿Dónde está la bola?)", "simon": "Simón (Memoria de secuencia)", "digits": "Número Distinto",
 }
 MODE_SLUG = {
     "anomaly": "anomalia", "illusion": "ilusion", "ishihara": "ishihara", "magiceye": "ojomagico", "contrast": "contraste",
     "sync": "sincronia", "swarm": "enjambre", "count": "conteo", "flicker": "cambio", "memory": "memoria",
     "stroop": "stroop", "math": "calculo", "sequence": "secuencia", "riddle": "acertijo", "loop": "bucle", "mix": "mixto",
+    "cups": "vasos", "simon": "simon", "digits": "numerodistinto",
 }
 TAGS = {
     "anomaly": ["#RetoVisual", "#EncuentraLaDiferencia", "#TestVisual"],
@@ -38,6 +40,9 @@ TAGS = {
     "riddle": ["#Acertijos", "#Adivinanzas", "#RetoMental"],
     "loop": ["#BucleInfinito", "#PerfectLoop", "#Hipnotico", "#Satisfying"],
     "mix": ["#RetoMental", "#TestDeCerebro", "#RetoVisual"],
+    "cups": ["#JuegoDeLosVasos", "#SigueLaBola", "#RetoDeAtencion", "#RetoVisual"],
+    "simon": ["#Simon", "#TestDeMemoria", "#RetoMental", "#Memoria"],
+    "digits": ["#EncuentraElNumero", "#TestVisual", "#RetoVisual", "#EncuentraLaDiferencia"],
 }
 
 
@@ -68,6 +73,12 @@ def video_slug(sc: Scene) -> str:
         detail = "colores"
     elif sc.mode == "riddle":
         detail = "preguntas"
+    elif sc.mode == "cups":
+        detail = "bola"
+    elif sc.mode == "simon":
+        detail = "colores"
+    elif sc.mode == "digits":
+        detail = f"{a0.sym}y{a0.shape}"
     else:  # anomaly, sync, swarm, contrast, flicker, memory
         detail = _ascii(SHAPES[sc.shape][0])
     return f"{MODE_SLUG[sc.mode]}_{detail}_{sc.seed}"
@@ -310,6 +321,51 @@ def _riddle(sc, tl):
     return titles, descs, []
 
 
+def _cups(sc, tl):
+    n = len(sc.acts)
+    titles = (f"¿En qué vaso está la bola? {n} rondas, cada vez más rápido",
+              "El juego de los vasos: ¿puedes seguir la bola hasta el final?",
+              f"Sigue la bola sin parpadear: ¿cuántas de {n} aciertas?",
+              "Tus ojos contra los vasos. Casi nadie llega a la última ronda")
+    descs = (f"{n} rondas del juego de los vasos y cada una es más rápida. 🥤\n\n"
+             "👇 Escribe 1, 2 o 3 en los comentarios ANTES de que termine cada ronda y mira si acertaste.",
+             "Sigue la bola con los ojos, sin pausar. Al final de cada ronda se levanta el vaso. 👀\n\n"
+             f"👇 Cuéntame: ¿cuántas de las {n} rondas acertaste?",
+             "Tu cerebro cree que sigue la bola... y se pierde. 🧠\n\n"
+             "👇 Comenta en qué ronda la perdiste por primera vez.")
+    return titles, descs, ["Rondas: " + "; ".join(f"{a.index + 1}) {a.answer}" for a in sc.acts)]
+
+
+def _simon(sc, tl):
+    n = len(sc.acts)
+    titles = (f"Test de memoria: recuerda el orden de {n} secuencias de luces",
+              "¿Recuerdas el orden? Memoria tipo Simón",
+              f"Mira, memoriza y responde: ¿cuántas de {n} secuencias aciertas?",
+              "Solo el 1% recuerda la última secuencia. ¿Y tú?")
+    descs = (f"{n} secuencias de luces, cada vez más largas. Memoriza el orden y responde. 🔴🟢🔵🟡\n\n"
+             f"👇 Comenta cuántas de las {n} acertaste (0 a {n}). ¿Hasta qué secuencia llegaste?",
+             "Mira cómo se iluminan los pads y memoriza el orden. La pregunta llega al final. 🧠\n\n"
+             "👇 Escribe tu respuesta a la última secuencia antes de ver la solución.",
+             "Tu memoria de trabajo, al límite. ⏱️\n\n"
+             f"👇 ¿Cuántas acertaste de {n}? Etiqueta a quien tenga mejor memoria.")
+    return titles, descs, ["Secuencias: " + "; ".join(f"{a.index + 1}) {a.answer}" for a in sc.acts)]
+
+
+def _digits(sc, tl):
+    n = len(sc.acts)
+    titles = (f"¿Encuentras el número distinto? {n} retos, cada vez más parecidos",
+              "Todos son iguales menos uno: encuéntralo antes de que acabe el tiempo",
+              f"Test de vista: {n} números escondidos entre dígitos casi idénticos",
+              "Solo el 1% encuentra el último número distinto")
+    descs = (f"En cada reto hay UN número distinto entre muchos casi iguales, y cada vez se parecen más. 🔢\n\n"
+             f"👇 Comenta en qué segundo lo encontraste en el último reto. ¿Cuántos de {n} acertaste?",
+             "Mira bien: parecen todos iguales, pero uno es diferente. 👀\n\n"
+             "👇 Escribe el número que encontraste en el último reto.",
+             f"{n} retos de vista de águila. 🦅\n\n"
+             "👇 Dime tu puntaje (0 a " + str(n) + ") y etiqueta a alguien que tenga mejor vista que tú.")
+    return titles, descs, ["Respuestas: " + _answers_text(sc)]
+
+
 def _loop(sc, tl):
     g = T.g(sc.shape)
     kind = LOOP_KINDS[sc.loop_kind][1]
@@ -350,7 +406,8 @@ def _mix(sc, tl):
 
 _BUILDERS = {"anomaly": _anomaly, "illusion": _illusion, "sync": _sync, "ishihara": _ishihara, "swarm": _swarm,
              "magiceye": _magiceye, "contrast": _contrast, "count": _count, "flicker": _flicker, "memory": _memory,
-             "stroop": _stroop, "math": _math, "sequence": _sequence, "riddle": _riddle, "loop": _loop, "mix": _mix}
+             "stroop": _stroop, "math": _math, "sequence": _sequence, "riddle": _riddle, "loop": _loop, "mix": _mix,
+             "cups": _cups, "simon": _simon, "digits": _digits}
 
 
 def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=()) -> tuple:
@@ -370,12 +427,18 @@ def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=(
         variables.append(f"Estructura: {len(sc.acts)} retos de {', '.join(sorted({TYPES[a.type].menu for a in sc.acts}))}")
         variables.append("Respuestas (control interno): " + _answers_text(sc))
     variables += [f"Duración: {tl.spec.duration:.0f}s a {tl.spec.fps} fps", *extra]
+    n = len(sc.acts)
+    pinned = ("¿Cuántas veces lo repetiste? Responde solo con un número 👇" if sc.mode == "loop"
+              else f"¿Cuántos de los {n} retos acertaste? Responde solo con un número (0 a {n}) 👇")
+    footer = "📤 Mándaselo a quien crea que no lo acierta.\n➕ Sígueme: un reto nuevo cada día."
     text = (
         f"ARCHIVO: {video_name}\n\n"
         f"TIPO DE VIDEO: {MODE_LABEL[sc.mode]}\n\n"
         "VARIABLES (control interno):\n" + "\n".join(f"  - {v}" for v in variables) + "\n\n"
         f"TÍTULO SUGERIDO:\n{title}\n\n"
-        f"DESCRIPCIÓN (COPY):\n{desc}\n\n"
+        f"DESCRIPCIÓN (COPY):\n{desc}\n\n{footer}\n\n"
+        f"COMENTARIO FIJADO (publícalo tú y fíjalo: los comentarios sencillos de una cifra son los que más se responden):\n{pinned}\n\n"
+        f"PORTADA: sube {video_name.rsplit('.', 1)[0]}_portada.jpg como miniatura del Reel (lleva el gancho a pantalla completa).\n\n"
         f"HASHTAGS:\n{' '.join(tags)}\n"
     )
     path.write_text(text, encoding="utf-8-sig")

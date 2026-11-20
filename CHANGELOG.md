@@ -3,6 +3,27 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.2.0] - 2026-11-20
+
+Retención y alcance, a partir de las métricas de las primeras publicaciones (alcance estancado en el grupo de prueba
+inicial y pocas reproducciones de 3 s) y de la documentación de Meta sobre contenido original y clasificación de Reels.
+
+### Añadido
+- **Gancho en el primer fotograma**: el reto entra ya formado (antes el primer fotograma era un fondo vacío, de ahí las
+  miniaturas oscuras) y lleva un texto de gancho de 2,2 s según la categoría del primer reto.
+- **Portada** (`<slug>_portada.jpg`) por video, para subirla como miniatura del Reel.
+- 3 retos nuevos (17 en total): **Vasos** (¿dónde está la bola?), **Simón** (recuerda el orden de los pads, con un
+  tic por destello) y **Número distinto** (dígitos casi idénticos, de fácil a difícil).
+- Cierre ampliado: nota en comentarios, **compartir** con alguien y **seguir** la cuenta; indicador «FINAL» en el último
+  reto; en la metadata, comentario fijado sugerido y aviso de la portada.
+
+### Cambiado
+- **Zona segura de Reels** (estimada: 14 % superior y 35 % inferior, comprobar en el móvil): etiqueta, cuenta atrás y
+  pregunta bajan de la franja superior; las respuestas (celdas, objetivo del enjambre, figuras contadas) ya no caen bajo
+  la pregunta fija ni bajo la zona de la app. Pregunta fija con caja semitransparente para leerse sobre cualquier fondo.
+- Cierre de 4–4,5 s y mensajes hablados de cierre acordes. Rejillas de memoria sin la de 3×4 (dejaba solo 3 celdas
+  válidas).
+
 ## [1.1.1] - 2026-11-17
 
 Revisión de calidad de cada reto en el modo aleatorio.

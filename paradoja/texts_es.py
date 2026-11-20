@@ -6,6 +6,7 @@ SPOKEN_LABEL = {
     "anomaly": "Reto", "illusion": "Ilusión", "ishihara": "Test", "magiceye": "Ojo mágico", "contrast": "Prueba",
     "sync": "Prueba", "swarm": "Ronda", "count": "Conteo", "flicker": "Cambio", "memory": "Memoria",
     "stroop": "Colores", "math": "Cálculo", "sequence": "Secuencia", "riddle": "Acertijo",
+    "cups": "Vasos", "simon": "Simón", "digits": "Números",
 }
 
 _UNI = ("cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce",
@@ -62,8 +63,20 @@ HOOK_SHORT = ("Casi nadie acierta.", "Solo el uno por ciento.", "Atento.", "¿Es
 MID = ("Mira bien.", "No parpadees.", "Concéntrate.", "Sin trampas.")
 REVEAL = ("Ahí estaba. ¿Lo viste?", "Ese era. ¿Acertaste?", "Mira dónde estaba. ¿Lo encontraste?")
 
-OUTRO = ("Dime tu puntaje en los comentarios.", "¿Cuántos acertaste? Coméntalo.", "Comenta cuántos acertaste.")
+# cierre hablado (<= 7 palabras): nota + compartir. En pantalla: nota, compartir y seguir (ver subtitles.py)
+OUTRO = ("Comenta tu nota y compártelo con alguien.", "Dime tu nota. Compártelo con un amigo.",
+         "¿Cuántos acertaste? Comenta y compártelo.")
 LOOP_OUTRO = ("¿Cuántas veces lo repetiste? Coméntalo.", "Comenta cuántas veces lo viste.")
+
+# Gancho en pantalla durante el primer segundo (el primer fotograma decide si el usuario se queda; los Reels suelen
+# verse sin sonido al principio). {N} = numero de retos. Se elige segun la categoria del primer reto.
+HOOK_TEXT = {
+    "Visual": ("SOLO EL 1% LO ENCUENTRA", "¿TIENES VISTA DE ÁGUILA?", "TU CEREBRO TE VA A ENGAÑAR", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Reflejos": ("¿TUS REFLEJOS SON REALES?", "UN SOLO FOTOGRAMA PARA ACERTAR", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Atención": ("NO PIERDAS LA CUENTA", "SOLO EL 1% LO SIGUE", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Memoria": ("¿TIENES BUENA MEMORIA?", "NO PARPADEES", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Mente": ("¿ERES MÁS LISTO QUE TUS AMIGOS?", "EL 90% FALLA EL PRIMERO", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+}
 
 
 # --------------------------------------------------------------------------- anomalia
@@ -116,6 +129,9 @@ MAGIC_MID = ("Paciencia.", "Relájate.", "Sin prisa.")
 CONTRAST_MID = ("Míralo bien.", "¿Seguro?", "Atento.")
 COUNT_MID = ("Cuenta bien.", "Atento.", "Sin trampas.")
 FLICKER_MID = ("Mira bien.", "Algo cambia.", "Atento.")
+DIGITS_MID = ("Mira bien.", "Casi iguales.", "Atento.")
+CUPS_MID = ("Más rápido.", "No la pierdas.", "Atento.")
+ORDINALS = ("primero", "segundo", "tercero", "cuarto", "quinto", "sexto")
 
 KIND_REVEAL = ("Cambió de color.", "Cambió de tamaño.", "Cambió de brillo.", "Se movió el punto.", "Giró.",
                "Desapareció una figura.")

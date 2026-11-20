@@ -66,7 +66,8 @@ class Timeline:
             "u_tau": tau, "u_hl": hl,
             "u_time": t,
             "u_mix": 1.0 - _ss(self.outro_start - 0.05, self.outro_start + 0.45, t),
-            "u_pop": _ss(0.0, 0.45, rt) * (1.0 - _ss(L - 0.4, L, rt)),
+            # el primer acto entra ya formado: el primer fotograma (miniatura) debe mostrar el reto, no un fondo vacio
+            "u_pop": (1.0 if idx == 0 else _ss(0.0, 0.45, rt)) * (1.0 - _ss(L - 0.4, L, rt)),
             "u_reveal": _ss(S, S + 0.35, rt),
             "u_revt": max(0.0, rt - S),
             "u_progress": 1.0 - min(1.0, max(0.0, (rt - 0.45) / (S - 0.45))),
@@ -84,6 +85,8 @@ class Timeline:
             u["u_dot"] = MAGIC_DOT
         if act.type == "count":
             u["u_cnt"] = act.q
+        if act.type in ("cups", "simon"):
+            u["u_q"] = act.q
         if act.arrays:
             u["u_n"] = act.n
             u.update(act.arrays)
@@ -99,6 +102,8 @@ class Timeline:
             ev.append((a.start, "whoosh"))
             if TYPES[a.type].countdown:
                 ev += [(a.start + a.search - k, "tick") for k in (3, 2, 1)]
+            if a.type == "simon":                     # un tic por cada destello (ayuda a memorizar el orden)
+                ev += [(a.start + a.q[1] + k * a.q[0], "tick") for k in range(a.n)]
             ev.append((a.start + a.search, "ding"))
         ev.append((self.outro_start, "chime"))
         return ev
