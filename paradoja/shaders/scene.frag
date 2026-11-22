@@ -329,6 +329,77 @@ vec3 illMoire(vec2 p) {
     return mix(col, sep, u_reveal);
 }
 
+// --- ilusiones 6-9: rejilla de Hermann, Muller-Lyer, triangulo de Kanizsa, Zollner
+float sdSeg(vec2 p, vec2 a, vec2 b);                    // definida mas abajo (digitos de 7 segmentos)
+
+vec3 illHermann(vec2 p) {                               // puntos grises fantasma en los cruces de las lineas claras
+    float s = 0.115 + 0.03 * u_actp.x, w = 0.030;
+    vec2 g = (p - ICENTER + vec2(0.0, u_actph * 0.012)) / s;
+    vec2 f = abs(fract(g + 0.5) - 0.5);                 // distancia (en celdas) a la linea mas cercana
+    float wl = w / s;
+    float lane = 1.0 - smoothstep(wl - 0.02, wl + 0.02, min(f.x, f.y));
+    vec3 col = mix(u_tunb * 0.35, u_tuna, lane);
+    float cross = 1.0 - smoothstep(wl * 0.55, wl * 0.75, length(f));      // centro exacto de cada cruce
+    col = mix(col, u_accent, cross * u_reveal);         // al revelar, los cruces son tan claros como la linea
+    return col;
+}
+
+float mlLine(vec2 p, float y, float L, float fin) {     // linea con aletas: fin=+1 flechas hacia fuera, -1 hacia dentro
+    float d = sdSeg(p, vec2(-L, y), vec2(L, y));
+    float fx = 0.09 * cos(0.55), fy = 0.09 * sin(0.55);
+    for (int i = 0; i < 2; i++) {
+        float sx = (i == 0) ? -1.0 : 1.0;
+        vec2 e = vec2(sx * L, y);
+        float dx = (fin > 0.0) ? -sx * fx : sx * fx;
+        d = min(d, sdSeg(p, e, e + vec2(dx, fy)));
+        d = min(d, sdSeg(p, e, e + vec2(dx, -fy)));
+    }
+    return d - 0.007;
+}
+vec3 illMullerLyer(vec2 p) {                            // dos lineas IGUALES: la de aletas hacia dentro parece mas larga
+    float L = 0.26;
+    float swap = (u_actp.x < 0.5) ? 1.0 : -1.0;
+    float y1 = ICENTER.y - 0.13, y2 = ICENTER.y + 0.13;
+    float d1 = mlLine(p, y1, L, swap), d2 = mlLine(p, y2, L, -swap);
+    vec3 col = u_tunb;
+    col = mix(col, u_tuna, 1.0 - smoothstep(-0.001, 0.002, min(d1, d2)));
+    float guide = exp(-pow((abs(abs(p.x) - L) - 0.0) / 0.003, 2.0)) * step(abs(p.y - ICENTER.y), 0.22);
+    return mix(col, u_accent, guide * u_reveal);
+}
+
+vec3 illKanizsa(vec2 p) {                               // el triangulo blanco no existe: lo inventa el cerebro
+    vec2 v = p - ICENTER;
+    float rot0 = u_actph * 0.12 * ((u_actp.y > 0.5) ? 1.0 : -1.0);
+    vec3 col = u_tuna;
+    float a = (1.0 - u_reveal) * 0.52;                  // semiangulo del bocado; al revelar se cierran las bocas
+    for (int i = 0; i < 3; i++) {
+        float th = rot0 + 1.5708 + float(i) * 2.0944;
+        vec2 c = 0.20 * vec2(cos(th), sin(th));
+        vec2 q = v - c;
+        float dirA = atan(-c.y, -c.x);
+        float dq = atan(q.y, q.x) - dirA;
+        float ang = abs(atan(sin(dq), cos(dq)));
+        float m = (1.0 - smoothstep(-0.002, 0.002, length(q) - 0.075)) * (1.0 - step(ang, a));
+        col = mix(col, u_tunb, m);
+    }
+    return col;
+}
+
+vec3 illZollner(vec2 p) {                               // rayitas alternas hacen que las lineas largas parezcan inclinadas
+    vec2 q = rot(p - ICENTER, 0.6);
+    float s = 0.17;
+    float row = floor(q.y / s + 0.5);
+    float ly = q.y - row * s;                           // distancia con signo a la linea de la fila
+    vec3 col = u_tunb;
+    float line = 1.0 - smoothstep(0.005, 0.008, abs(ly));
+    float dx = (fract(q.x / 0.07 + 0.25 * mod(row, 2.0)) - 0.5) * 0.07;
+    vec2 lr = rot(vec2(dx, ly), (mod(row, 2.0) < 0.5) ? 0.75 : -0.75);
+    float hatch = (1.0 - smoothstep(0.004, 0.007, abs(lr.y))) * (1.0 - smoothstep(0.036, 0.040, abs(lr.x)));
+    col = mix(col, u_tuna, max(line, hatch));
+    float guide = exp(-pow(abs(ly) / 0.0035, 2.0));
+    return mix(col, u_accent, guide * u_reveal);
+}
+
 vec3 illusionScene(vec2 px) {
     vec2 p = (px - 0.5 * u_res) / u_res.x;
     vec3 bg = background(px);
@@ -338,7 +409,11 @@ vec3 illusionScene(vec2 px) {
     else if (u_kind == 2) c = illEbbinghaus(p, bg);
     else if (u_kind == 3) c = illScintillating(p);
     else if (u_kind == 4) c = illSpiral(p);
-    else                  c = illMoire(p);
+    else if (u_kind == 5) c = illMoire(p);
+    else if (u_kind == 6) c = illHermann(p);
+    else if (u_kind == 7) c = illMullerLyer(p);
+    else if (u_kind == 8) c = illKanizsa(p);
+    else                  c = illZollner(p);
     return timerBar(mix(bg, c, u_pop), px);
 }
 
@@ -540,9 +615,17 @@ vec3 swarmScene(vec2 px) {
 // periodos). Pasada 2: patron de puntos periodico en la fase => el desplazamiento horizontal codifica la profundidad.
 const vec2 ECENTER = vec2(0.0, -0.241);                // px.y = 700: por encima de los subtitulos
 float depthAt(vec2 p) {
-    float sd = shapeSDi(p - ECENTER, 0.23 / 0.36, u_actshape);
-    if (u_actp.y > 0.5) return pow(clamp(-sd / 0.16, 0.0, 1.0), 0.55);    // domo
-    return smoothstep(0.0, 0.07, -sd);                                      // meseta con bordes biselados
+    float sd, bev = 0.07, dome = 0.16;
+    if (u_sym >= 0) {                                                       // numero 3D (trazo mas fino: bisel y domo menores)
+        float H = 0.36;
+        sd = numSD((p - ECENTER) / H, u_sym) * H - 0.012;                  // trazo engrosado: mas profundidad util
+        bev = 0.014;
+        dome = 0.040;
+    } else {
+        sd = shapeSDi(p - ECENTER, 0.23 / 0.36, u_actshape);
+    }
+    if (u_actp.y > 0.5) return pow(clamp(-sd / dome, 0.0, 1.0), 0.55);    // domo
+    return smoothstep(0.0, bev, -sd);                                       // meseta con bordes biselados
 }
 vec3 magicScene(vec2 px) {
     ivec2 ip = ivec2(px);
@@ -639,16 +722,70 @@ vec3 countScene(vec2 px) {
     return timerBar(col, px);
 }
 
-// ------------------------------------------------------------------ MODO 11: fondo para retos de texto (ASS dibuja el texto)
+// ------------------------------------------------------------------ MODO 10: retos de texto (el texto lo dibuja ASS)
+// u_kind: 0 acertijo (signos de interrogacion) | 1 colores | 2 calculo (operadores) | 3 secuencia (digitos)
+// u_q = (semialto de la tarjeta, centro y de la tarjeta) en unidades de ancho; el texto va dentro de la tarjeta.
+float qmarkSD(vec2 q) {                                 // signo de interrogacion de trazos (q con y hacia abajo)
+    q.y = -q.y;
+    float d = sdSeg(q, vec2(-0.17, 0.10), vec2(-0.12, 0.21));
+    d = min(d, sdSeg(q, vec2(-0.12, 0.21), vec2(0.0, 0.27)));
+    d = min(d, sdSeg(q, vec2(0.0, 0.27), vec2(0.12, 0.21)));
+    d = min(d, sdSeg(q, vec2(0.12, 0.21), vec2(0.17, 0.10)));
+    d = min(d, sdSeg(q, vec2(0.17, 0.10), vec2(0.12, 0.0)));
+    d = min(d, sdSeg(q, vec2(0.12, 0.0), vec2(0.0, -0.07)));
+    d = min(d, sdSeg(q, vec2(0.0, -0.07), vec2(0.0, -0.15)));
+    return min(d - 0.045, length(q - vec2(0.0, -0.27)) - 0.055);
+}
+float opSD(vec2 q, int k) {
+    if (k == 0) return min(sdSeg(q, vec2(-0.16, 0.0), vec2(0.16, 0.0)), sdSeg(q, vec2(0.0, -0.16), vec2(0.0, 0.16))) - 0.045;
+    if (k == 1) return sdSeg(q, vec2(-0.17, 0.0), vec2(0.17, 0.0)) - 0.045;
+    return min(sdSeg(q, vec2(-0.12, -0.12), vec2(0.12, 0.12)), sdSeg(q, vec2(-0.12, 0.12), vec2(0.12, -0.12))) - 0.045;
+}
 vec3 textScene(vec2 px) {
     vec2 p = (px - 0.5 * u_res) / u_res.x;
     vec3 col = background(px);
     float T = u_time * u_speed;
-    for (int i = 0; i < 4; i++) {
+    vec2 cc = vec2(0.0, u_q.y);
+    // resplandor central que respira
+    col += u_accent * 0.10 * exp(-length((p - cc) * vec2(1.0, 0.8)) * 2.6) * (0.8 + 0.2 * sin(T * 1.3)) * u_pop;
+    // poligonos concentricos girando (como antes, mas tenues)
+    for (int i = 0; i < 3; i++) {
         float fi = float(i);
-        float d = abs(shapeSD(rot(p - ICENTER, T * (0.15 + 0.08 * fi) * ((i % 2 == 0) ? 1.0 : -1.0)), (0.20 + 0.13 * fi) / 0.36)) - 0.0015;
-        col = mix(col, u_accent, (1.0 - smoothstep(0.0, 0.004, d)) * 0.22 * u_pop);
+        float d = abs(shapeSD(rot(p - cc, T * (0.15 + 0.08 * fi) * ((i % 2 == 0) ? 1.0 : -1.0)), (0.30 + 0.17 * fi) / 0.36)) - 0.0015;
+        col = mix(col, u_accent, (1.0 - smoothstep(0.0, 0.004, d)) * 0.14 * u_pop);
     }
+    // simbolos del reto que suben flotando por detras de la tarjeta
+    for (int i = 0; i < 18; i++) {
+        float fi = float(i);
+        float h1 = hash21(vec2(fi, 1.7)), h2 = hash21(vec2(fi, 9.1)), h3 = hash21(vec2(fi, 4.3));
+        float sz = 0.05 + 0.08 * h3;
+        float y = 0.95 - fract(h1 + T * (0.03 + 0.05 * h2)) * 1.9;
+        vec2 q = rot((p - vec2((h2 - 0.5) * 1.0 + 0.03 * sin(T * 0.8 + fi), y)) / sz, (h1 - 0.5) * 0.9 + T * (h3 - 0.5) * 0.4);
+        float d;
+        vec3 c = mix(u_accent, u_tuna, 0.35 * h1);
+        if (u_kind == 0)      d = qmarkSD(q * 1.6) / 1.6;
+        else if (u_kind == 1) { d = length(q) - 0.30; c = hsv2rgb(vec3(h1, 0.75, 1.0)); }
+        else if (u_kind == 2) d = opSD(q * 1.6, int(h3 * 2.99)) / 1.6;
+        else                  d = numSD(q * 1.3, int(h2 * 9.99)) / 1.3;
+        d *= sz;
+        float a = (0.10 + 0.13 * h3) * u_pop;
+        col += c * 0.05 * exp(-max(d, 0.0) * 45.0) * a * 4.0;
+        col = mix(col, c, (1.0 - smoothstep(-0.002, 0.002, d)) * a);
+    }
+    // tarjeta de lectura
+    float grow = 0.94 + 0.06 * u_pop;
+    vec2 hs = vec2(0.47, u_q.x) * grow;
+    vec2 dd = abs(p - cc) - hs + 0.045;
+    float dc = length(max(dd, 0.0)) + min(max(dd.x, dd.y), 0.0) - 0.045;
+    float inside = 1.0 - smoothstep(-0.003, 0.003, dc);
+    col = mix(col, col * 0.30 + u_bg1 * 0.45, inside * 0.82 * u_pop);
+    vec3 bcol = mix(u_accent, vec3(1.0), 0.45 * u_reveal);
+    col += bcol * exp(-pow(dc / 0.0045, 2.0)) * (0.60 + 0.25 * sin(T * 2.0) + 0.5 * u_reveal) * u_pop;
+    col += u_accent * 0.16 * exp(-max(dc, 0.0) * 28.0) * u_pop;
+    // al revelar: ondas que salen de la tarjeta
+    float rp = fract(u_revt * 0.9);
+    col += u_accent * exp(-pow((dc - rp * 0.30) / 0.012, 2.0)) * (1.0 - rp) * u_reveal * 0.8;
+    col *= 1.0 - 0.30 * smoothstep(0.35, 1.0, length(p * vec2(1.0, 0.62)));       // viñeta
     return timerBar(col, px);
 }
 

@@ -58,11 +58,11 @@ def video_slug(sc: Scene) -> str:
     elif sc.mode == "mix":
         detail = "-".join(MODE_SLUG[a.type] for a in sc.acts[:3])
     elif sc.mode == "illusion":
-        detail = ("ouchi", "cafewall", "ebbinghaus", "rejilla", "espiral", "muare")[a0.kind]
+        detail = ("ouchi", "cafewall", "ebbinghaus", "rejilla", "espiral", "muare", "hermann", "mullerlyer", "kanizsa", "zollner")[a0.kind]
     elif sc.mode == "ishihara":
         detail = str(a0.sym) if a0.sym >= 0 else _ascii(SHAPES[a0.shape][0])
     elif sc.mode == "magiceye":
-        detail = _ascii(SHAPES[a0.shape][0])
+        detail = str(a0.sym) if a0.sym >= 0 else _ascii(SHAPES[a0.shape][0])
     elif sc.mode == "count":
         detail = _ascii(SHAPES[int(a0.q[0])][0]) if a0.q[0] >= 0 else "colores"
     elif sc.mode == "math":
@@ -307,18 +307,20 @@ def _sequence(sc, tl):
 
 
 def _riddle(sc, tl):
+    """El primer acertijo va en el titulo y se pide la respuesta: es lo que mas comentarios genera."""
     n, q = len(sc.acts), sc.acts[0].question
-    short = f"Acertijo: {q}" if len(q) <= 48 else f"Acertijo: {q[:44].rsplit(' ', 1)[0]}..."
-    titles = (short, f"{n} acertijos y preguntas trampa: ¿cuántos aciertas?",
-              "Solo 1 de cada 10 resuelve estos acertijos a la primera",
-              "Acertijos que engañan a tu cerebro. ¿Te atreves?")
-    descs = ("Acertijos y preguntas trampa. Piensa antes de responder. 🧩\n\n"
-             "👇 Comenta tu respuesta al último acertijo (sin hacer trampa).",
+    short = q if len(q) <= 70 else f"{q[:66].rsplit(' ', 1)[0]}..."
+    titles = (short, f"Acertijo: {short}", f"{short} (la respuesta, al final)",
+              f"{n} acertijos y preguntas trampa: ¿cuántos aciertas?", "Solo 1 de cada 10 resuelve estos acertijos a la primera")
+    descs = (f"Empezamos con este: «{short}» 🧩\n\n"
+             "👇 Escribe tu respuesta ANTES de ver la solución y cuéntame si acertaste.",
              f"{n} acertijos. Algunos son más fáciles de lo que parecen. 😏\n\n"
              f"👇 Escribe cuántos acertaste (0 a {n}) y cuál te sorprendió.",
              "Tu primera respuesta suele ser la equivocada. 🤔\n\n"
-             "👇 ¿Cuál fue tu respuesta al primero? Cuéntamelo.")
-    return titles, descs, []
+             f"👇 ¿Qué respondiste a «{short}»? Cuéntamelo en los comentarios.",
+             "Piensa antes de responder: algunos son preguntas trampa. 🧠\n\n"
+             "👇 Comenta tu respuesta al último acertijo (sin hacer trampa).")
+    return titles, descs, ["Acertijos: " + " | ".join(f"{a.index + 1}) {a.question} -> {a.answer}" for a in sc.acts)]
 
 
 def _cups(sc, tl):
@@ -410,36 +412,127 @@ _BUILDERS = {"anomaly": _anomaly, "illusion": _illusion, "sync": _sync, "ishihar
              "cups": _cups, "simon": _simon, "digits": _digits}
 
 
-def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=()) -> tuple:
-    """Escribe el .txt de publicacion. Devuelve (ruta, titulo elegido). `avoid` = titulos usados recientemente."""
+# --------------------------------------------------------------------------- texto de publicacion
+# Guia de Meta para subtitulos: sin enlaces, pocas mayusculas y no mas de cinco hashtags. Los pies de compartir/seguir
+# y la frase de busqueda rotan para que dos publicaciones del mismo tipo no lleven el mismo texto.
+SEO = {
+    "anomaly": ("Reto visual para entrenar la atención: encuentra la diferencia.",
+                "Test de vista y atención con la respuesta al final de cada reto."),
+    "illusion": ("Ilusiones ópticas que engañan al cerebro, con la explicación al final.",
+                 "Trucos visuales para ver cómo te engaña tu propia mente."),
+    "ishihara": ("Test de visión para jugar con amigos (es un juego, no sustituye un examen médico).",
+                 "Prueba de vista y colores: ¿qué ves? Es un juego, no un diagnóstico."),
+    "magiceye": ("Ojo mágico: imágenes 3D ocultas (autoestereogramas) para ver sin gafas.",
+                 "Imagen 3D escondida: enfoca la vista y espera a que aparezca."),
+    "contrast": ("Ilusión de contraste: lo que ves no siempre es lo que es.",
+                 "Ilusiones ópticas de color y brillo que engañan a tus ojos."),
+    "sync": ("Reto de reflejos: pausa el video justo en el instante exacto.",
+             "Test de reflejos y tiempo de reacción en cada prueba."),
+    "swarm": ("Reto de atención: sigue el punto rojo entre muchas figuras en movimiento.",
+              "Test de seguimiento visual con la respuesta al final."),
+    "count": ("Reto de conteo: cuenta bien las figuras sin perder la atención.",
+              "Test de atención y concentración contando figuras."),
+    "flicker": ("¿Qué cambia? Test de atención para detectar diferencias entre dos imágenes.",
+                "Detecta el cambio: reto de atención visual."),
+    "memory": ("Test de memoria visual: recuerda dónde estaba cada figura.",
+               "Entrena tu memoria con retos cortos y respuesta al final."),
+    "stroop": ("Efecto Stroop: test de atención y control mental con colores.",
+               "Reto de colores y palabras que confunde a tu cerebro."),
+    "math": ("Cálculo mental con trampa: ¿te fías del primer resultado?",
+             "Retos de matemáticas y orden de operaciones sin calculadora."),
+    "sequence": ("Secuencias numéricas: adivina el número que sigue con lógica.",
+                 "Test de lógica y razonamiento con series de números."),
+    "riddle": ("Acertijos con respuesta para entrenar tu mente.",
+               "Adivinanzas y preguntas trampa de lógica con la solución al final."),
+    "cups": ("Juego de los vasos: sigue la bola con los ojos.",
+             "Reto de atención y seguimiento visual: ¿dónde está la bola?"),
+    "simon": ("Juego de memoria tipo Simón: recuerda el orden de las luces.",
+              "Test de memoria de secuencias con luces y números."),
+    "digits": ("Encuentra el número distinto: test de vista y atención.",
+               "Reto de atención visual con números casi idénticos."),
+    "loop": ("Bucle perfecto y relajante, ideal para ver una y otra vez.",
+             "Video hipnótico en bucle: ¿dónde empieza y dónde termina?"),
+    "mix": ("Mini-retos de atención, memoria y lógica en un solo video.",
+            "Test de cerebro con retos variados y la respuesta al final."),
+}
+SHARE_LINES = ("📤 Mándaselo a quien crea que no lo acierta.", "📤 Reta a un amigo: envíale este video.",
+               "📤 Compártelo con alguien a quien le encanten los retos.", "📤 ¿Conoces a alguien que lo resolvería? Envíaselo.",
+               "📤 Guárdalo y reta a alguien de tu familia.", "📤 Mándaselo a tu amigo más listo y mira si lo logra.")
+FOLLOW_LINES = ("➕ Sígueme: un reto nuevo cada día.", "➕ Si te gustó, sígueme: hay más retos todos los días.",
+                "➕ Sígueme para el reto de mañana.", "➕ Nuevo reto cada día: sígueme para no perdértelo.")
+# (infinitivo para «¿Puedes ...?», plural para «5 ...»)
+ACTION = {
+    "anomaly": ("encontrar la figura distinta", "retos visuales"), "illusion": ("no caer en estas ilusiones", "ilusiones ópticas"),
+    "ishihara": ("ver lo que hay escondido", "test de visión"), "magiceye": ("ver la figura 3D", "figuras 3D escondidas"),
+    "contrast": ("decir qué color es más claro", "pruebas de contraste"), "sync": ("pausar en el instante exacto", "pruebas de reflejos"),
+    "swarm": ("seguir el punto rojo", "rondas de seguimiento"), "count": ("contar bien las figuras", "retos de conteo"),
+    "flicker": ("ver qué cambia", "retos de atención"), "memory": ("recordar dónde estaba cada figura", "retos de memoria"),
+    "stroop": ("decir el color y no la palabra", "pruebas Stroop"), "math": ("resolver estas cuentas sin calculadora", "cuentas con trampa"),
+    "sequence": ("adivinar el número que sigue", "secuencias"), "riddle": ("resolver estos acertijos", "acertijos"),
+    "cups": ("seguir la bola", "rondas de vasos"), "simon": ("recordar el orden de las luces", "secuencias de luces"),
+    "digits": ("encontrar el número distinto", "retos de números"), "mix": ("superar estos retos", "mini-retos"),
+}
+AI_LABEL_NOTE = ("Activa «Etiqueta de IA» al publicar: la voz del video es sintética y Meta pide declarar el audio realista "
+                 "creado digitalmente (puede penalizar si no se declara).")
+
+
+def _generic_titles(sc) -> list:
+    """Titulos con estructura distinta a los de cada tipo; se mezclan con ellos para que haya mas rotacion."""
+    if sc.mode == "loop" or sc.mode not in ACTION:
+        return []
+    act, plural = ACTION[sc.mode]
+    n = len(sc.acts)
+    rng = random.Random(sc.seed ^ 0x7171)
+    p = rng.choice((1, 3, 5, 10))
+    return [f"Solo el {p}% logra {act}", f"{n} {plural}: ¿cuántos aciertas?", f"¿Puedes {act}? El último casi nadie lo logra",
+            f"Nadie acierta los {n} {plural} a la primera", f"¿Eres capaz de {act}? Compruébalo en {n} pruebas",
+            f"{n} {plural} para poner a prueba tu cerebro"]
+
+
+def build_post(sc: Scene, tl: Timeline, avoid=()) -> dict:
+    """Todo el texto de publicacion de un video. Determinista por semilla; `avoid` = titulos usados hace poco."""
     rng = random.Random(sc.seed ^ 0xCAFE)
     pick = _Pick(rng, avoid)
     titles, descs, extra = _BUILDERS[sc.mode](sc, tl)
-    title = pick.title(titles)
-    desc = pick.choice(descs)
+    title = pick.title(list(titles) + ([] if sc.mode == "riddle" else _generic_titles(sc)))
+    head, _, rest = pick.choice(descs).partition("\n\n")
+    desc = head + "\n" + pick.choice(SEO[sc.mode]) + (("\n\n" + rest) if rest else "")
+    footer = pick.choice(SHARE_LINES) + "\n" + pick.choice(FOLLOW_LINES)
     specific = TAGS[sc.mode]
     if sc.mode == "mix":
         specific = specific + [t for ty in dict.fromkeys(a.type for a in sc.acts) for t in TAGS[ty][:1]]
     tags = list(dict.fromkeys(specific))[:4] + ["#ParadojaInfinita"]
+    n = len(sc.acts)
+    pinned = ("¿Cuántas veces lo repetiste? Responde solo con un número 👇" if sc.mode == "loop"
+              else f"¿Cuántos de los {n} retos acertaste? Responde solo con un número (0 a {n}) 👇")
+    paste = f"{title}\n\n{desc}\n\n{footer}\n\n{' '.join(tags)}"      # exactamente lo que se pega en la publicacion
+    return dict(title=title, desc=desc, footer=footer, tags=tags, pinned=pinned, paste=paste, extra=extra)
 
+
+def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=()) -> tuple:
+    """Escribe el .txt de publicacion (y `<nombre>_publicar.txt`, solo con el texto a pegar). Devuelve (ruta, titulo)."""
+    post = build_post(sc, tl, avoid)
     variables = [f"Semilla: {sc.seed}", f"Paleta: {sc.palette.name.capitalize()}"]
     if sc.mode != "loop":
         variables.append(f"Estructura: {len(sc.acts)} retos de {', '.join(sorted({TYPES[a.type].menu for a in sc.acts}))}")
         variables.append("Respuestas (control interno): " + _answers_text(sc))
-    variables += [f"Duración: {tl.spec.duration:.0f}s a {tl.spec.fps} fps", *extra]
-    n = len(sc.acts)
-    pinned = ("¿Cuántas veces lo repetiste? Responde solo con un número 👇" if sc.mode == "loop"
-              else f"¿Cuántos de los {n} retos acertaste? Responde solo con un número (0 a {n}) 👇")
-    footer = "📤 Mándaselo a quien crea que no lo acierta.\n➕ Sígueme: un reto nuevo cada día."
+    variables += [f"Duración: {tl.spec.duration:.0f}s a {tl.spec.fps} fps", *post["extra"]]
+    stem = video_name.rsplit(".", 1)[0]
     text = (
+        "=== COPIAR Y PEGAR TODO JUNTO EN LA PUBLICACIÓN (título + descripción + hashtags) ===\n"
+        f"{post['paste']}\n"
+        "=== FIN DEL TEXTO A PEGAR ===\n\n"
         f"ARCHIVO: {video_name}\n\n"
         f"TIPO DE VIDEO: {MODE_LABEL[sc.mode]}\n\n"
+        f"ANTES DE PUBLICAR: {AI_LABEL_NOTE}\n"
+        f"Portada: sube {stem}_portada.jpg como miniatura del Reel (lleva el gancho a pantalla completa).\n\n"
         "VARIABLES (control interno):\n" + "\n".join(f"  - {v}" for v in variables) + "\n\n"
-        f"TÍTULO SUGERIDO:\n{title}\n\n"
-        f"DESCRIPCIÓN (COPY):\n{desc}\n\n{footer}\n\n"
-        f"COMENTARIO FIJADO (publícalo tú y fíjalo: los comentarios sencillos de una cifra son los que más se responden):\n{pinned}\n\n"
-        f"PORTADA: sube {video_name.rsplit('.', 1)[0]}_portada.jpg como miniatura del Reel (lleva el gancho a pantalla completa).\n\n"
-        f"HASHTAGS:\n{' '.join(tags)}\n"
+        f"TÍTULO SUGERIDO:\n{post['title']}\n\n"
+        f"DESCRIPCIÓN (COPY):\n{post['desc']}\n\n{post['footer']}\n\n"
+        f"COMENTARIO FIJADO (publícalo tú justo después y fíjalo: los comentarios sencillos de una cifra son los que más se responden):\n"
+        f"{post['pinned']}\n\n"
+        f"HASHTAGS:\n{' '.join(post['tags'])}\n"
     )
     path.write_text(text, encoding="utf-8-sig")
-    return path, title
+    path.with_name(f"{path.stem}_publicar.txt").write_text(post["paste"] + "\n", encoding="utf-8-sig")
+    return path, post["title"]

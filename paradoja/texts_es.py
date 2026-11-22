@@ -114,13 +114,28 @@ ILL_TEXT = {
     5: (("¿Cuántas capas se mueven?", "¿Ves ondas moviéndose? Cuéntalas."),
         ("Observa.", "Mira bien."),
         ("Solo son dos mallas girando.", "Dos capas. Nada más.")),
+    6: (("¿Ves puntos grises entre los cuadrados?", "¿Ves puntitos grises en los cruces?"),
+        ("Mira un cruce.", "Mira bien."),
+        ("No hay puntos grises. Es una ilusión.", "Todos los cruces son blancos.")),
+    7: (("¿Cuál línea es más larga?", "¿Cuál es más larga, la de arriba o la de abajo?"),
+        ("Decide ya.", "Elige rápido."),
+        ("Son iguales. Miden lo mismo.", "Exactamente iguales. Tu cerebro te engañó.")),
+    8: (("¿Ves un triángulo blanco en el centro?", "¿Ves un triángulo entre los círculos?"),
+        ("Míralo bien.", "¿Seguro?"),
+        ("No hay triángulo. Tu cerebro lo inventó.", "Nunca hubo triángulo.")),
+    9: (("¿Las líneas largas son paralelas?", "¿Estas líneas están inclinadas?"),
+        ("¿Paralelas?", "Mira bien."),
+        ("Son totalmente paralelas.", "Todas son paralelas. Tu cerebro te engañó.")),
 }
 ILL_NAME = ("ilusión de Ouchi", "ilusión del Café Wall", "ilusión de Ebbinghaus", "rejilla centelleante",
-            "espiral hipnótica", "efecto muaré")
+            "espiral hipnótica", "efecto muaré", "rejilla de Hermann", "ilusión de Müller-Lyer", "triángulo de Kanizsa",
+            "ilusión de Zöllner")
 ILL_ASK = ("¿Viste moverse el círculo del centro?", "¿Te parecieron torcidas las líneas?",
            "¿Cuál círculo del centro viste más grande: el izquierdo o el derecho?",
            "¿Cuántos puntos negros alcanzaste a ver?", "Después de mirarla, ¿se movió tu mano?",
-           "¿Cuántas capas viste moverse?")
+           "¿Cuántas capas viste moverse?", "¿Viste puntos grises en los cruces?",
+           "¿Cuál de las dos líneas viste más larga?", "¿Viste un triángulo blanco en el centro?",
+           "¿Te parecieron paralelas las líneas largas?")
 
 # --------------------------------------------------------------------------- otros tipos
 SYNC_MID = ("Prepárate.", "Atento.", "Ya casi.")

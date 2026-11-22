@@ -49,7 +49,7 @@ MODES = (*TYPES, "loop", "mix")
 LOOP_SCENE_ID = 2
 
 ANOMALY_KINDS = ("hue", "size", "bright", "dot", "rotate", "missing")  # indice = u_kind (5 solo en flicker/memory)
-ILLUSIONS = ("ouchi", "cafe", "ebbinghaus", "scintillating", "spiral", "moire")
+ILLUSIONS = ("ouchi", "cafe", "ebbinghaus", "scintillating", "spiral", "moire", "hermann", "mullerlyer", "kanizsa", "zollner")
 
 # (sustantivo, es femenino). Indice = u_shape
 SHAPES = (("círculo", False), ("triángulo", False), ("rombo", False), ("hexágono", False),

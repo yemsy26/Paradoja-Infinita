@@ -3,6 +3,29 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.3.0] - 2026-11-22
+
+Variedad de contenido, texto de publicación y aspecto de los retos de texto.
+
+### Añadido
+- **Acertijos**: de 34 a más de 120 en `content/acertijos.json` (los antiguos conservan su índice) y 11 familias de
+  acertijos con números generados (edades, bate y pelota, campanadas, monedas…) que nunca repiten enunciado.
+- **Secuencias**: 17 familias (cubos, alternadas, diferencias crecientes, ×m+k, potencias de 2…) con parámetros
+  amplios: el nivel difícil pasa de 24 series posibles a miles; no se repite la misma serie dentro de un video.
+- **Ilusiones**: 4 nuevas (rejilla de Hermann, Müller-Lyer, triángulo de Kanizsa y Zöllner), 10 en total.
+- **Ojo mágico con números de dos cifras** en 3D, además de las 7 figuras.
+- `<nombre>_publicar.txt` con solo el texto a pegar, copia automática al portapapeles en Windows (`--no-copy` lo
+  desactiva) y bloque «COPIAR Y PEGAR» al inicio del `.txt`. Sin la etiqueta «HASHTAGS:» dentro del texto.
+- Aviso de la **etiqueta de IA** de Meta (la voz es sintética) en la consola y en el `.txt`.
+
+### Cambiado
+- Títulos y descripciones: frase de búsqueda por tipo, pies de compartir/seguir rotativos y títulos genéricos
+  adicionales (más de 40 combinaciones por tipo). En los acertijos el primer acertijo va en el título y se pide la
+  respuesta. Reglas de Meta respetadas: sin enlaces, pocas mayúsculas, máximo 5 hashtags.
+- Retos de texto (acertijo, colores, cálculo, secuencia): tarjeta de lectura con borde luminoso, símbolos flotantes
+  (signos de interrogación, operadores, dígitos), ondas al revelar y viñeta. Gancho y respuesta como fichas de color
+  de acento con texto de alto contraste. Los acertijos largos reducen la letra para no invadir otras zonas.
+
 ## [1.2.0] - 2026-11-20
 
 Retención y alcance, a partir de las métricas de las primeras publicaciones (alcance estancado en el grupo de prueba

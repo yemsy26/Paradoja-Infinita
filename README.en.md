@@ -37,9 +37,9 @@ and closes with a call to comment the score.
 | Category | Challenge | Mechanic |
 |---|---|---|
 | Visual | Anomaly | Grid of shapes where one differs (color, size, brightness, dot, rotation) |
-| Visual | Optical illusion | Ouchi, café wall, Ebbinghaus, scintillating grid, spiral, moiré; unmasked at the end |
+| Visual | Optical illusion | 10 illusions: Ouchi, café wall, Ebbinghaus, scintillating grid, spiral, moiré, Hermann, Müller-Lyer, Kanizsa and Zöllner; unmasked at the end |
 | Visual | Vision test | Fluctuating Voronoi field hiding a number or shape through a slight tint difference |
-| Visual | Magic eye | Real autostereogram, a different hidden 3D shape per round |
+| Visual | Magic eye | Real autostereogram, a different hidden 3D shape or two-digit number per round |
 | Visual | Contrast | 4 variants (does it change? lighter or darker? which is darker? which is lighter?); the truth differs per round |
 | Reflexes | Synchronization | A shape spins at extreme speed and fits a silhouette for **exactly one frame** |
 | Attention | Swarm tracker | One red particle for 2 s, it blends in, the swarm mixes and stops |
@@ -51,8 +51,8 @@ and closes with a call to comment the score.
 | Memory | Memory | Memorize for 3 s, blank screen, one shape changed |
 | Mind | Stroop effect | Color words printed in a different ink: say the ink color |
 | Mind | Math | Generated expressions with an order-of-operations trap |
-| Mind | Sequence | "Which number comes next?" (arithmetic, geometric, squares, Fibonacci, primes...) |
-| Mind | Riddle | Riddles and trick questions from `content/acertijos.json` (editable) |
+| Mind | Sequence | "Which number comes next?" (17 families: arithmetic, geometric, squares, cubes, Fibonacci, interleaved, primes...; thousands of distinct series) |
+| Mind | Riddle | 120+ riddles and trick questions from `content/acertijos.json` (editable) plus generated number riddles (ages, bat and ball, chimes...) that never repeat |
 | Special | Infinite loop | Perfect geometric loop (last frame matches the first, audio included) |
 | Special | Mixed | 5-7 different challenges in one video |
 

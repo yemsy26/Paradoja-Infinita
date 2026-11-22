@@ -159,8 +159,9 @@ def test_stroop_ink_never_matches_the_word(seed):
 @pytest.mark.parametrize("seed", SEEDS)
 def test_riddles_do_not_repeat_inside_a_video(seed):
     sc, _ = _make("riddle", seed)
-    ids = [a.sym for a in sc.acts]
+    ids = [a.sym for a in sc.acts if a.sym >= 0]            # -1 = acertijo generado con numeros
     assert len(set(ids)) == len(ids)
+    assert len({a.question for a in sc.acts}) == len(sc.acts)
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -398,3 +399,104 @@ def test_digits_odd_differs_and_gets_harder(seed):
         assert a.target[1] not in blocked_rows(a.grid[1], a.grid[2])
     assert {sc.acts[-1].sym, sc.acts[-1].shape} in [set(p) for p in DIGIT_PAIRS[2]]   # el ultimo, 1 segmento de diferencia
     assert {sc.acts[0].sym, sc.acts[0].shape} in [set(p) for p in DIGIT_PAIRS[0]]
+
+
+# --------------------------------------------------------------------------- contenido: reservas amplias
+def test_riddle_pool_is_large_valid_and_has_no_duplicates():
+    from paradoja.acts import RIDDLES_PATH, load_riddles
+    pool = load_riddles()
+    assert len(pool) >= 120 and RIDDLES_PATH.exists()
+    qs = [r["q"] for r in pool]
+    assert len(set(qs)) == len(qs)
+    assert all(r["q"].strip() and r["a"].strip() and len(r["q"]) <= 115 and len(r["a"]) <= 45 for r in pool)
+
+
+def test_generated_riddles_have_the_right_answers():
+    import random
+    from paradoja.acts import _RIDDLE_FAMILIES, _riddle_layout
+    rng = random.Random(7)
+    for fam in _RIDDLE_FAMILIES:
+        for _ in range(60):
+            q, a = fam(rng)
+            assert q.endswith("?") and a and "{" not in q and "{" not in a
+            assert _riddle_layout(q)[1] >= 58
+    # comprobaciones de cuentas
+    import re
+    for _ in range(60):
+        q, a = _RIDDLE_FAMILIES[0](rng)                                    # padre e hijo
+        tot, diff = map(int, re.findall(r"\d+", q))
+        son = (tot - diff) // 2
+        assert (tot - diff) % 2 == 0 and son >= 3 and a.lower().startswith(num_es(son))
+        q, a = _RIDDLE_FAMILIES[4](rng)                                    # campanadas
+        n, t, m = map(int, re.findall(r"\d+", q))
+        assert int(a.split()[0]) == t * (m - 1) // (n - 1) and t % (n - 1) == 0
+        q, a = _RIDDLE_FAMILIES[7](rng)                                    # numero de dos cifras
+        s_, d_ = map(int, re.findall(r"\d+", q))
+        num = int(a.rstrip("."))
+        hi, lo = divmod(num, 10)
+        assert hi + lo == s_ and num - (10 * lo + hi) == d_ and 1 <= lo < hi
+
+
+def test_sequences_have_a_huge_variety_and_valid_next_terms():
+    import random
+    from paradoja.acts import _SEQ_LEVELS, _gen_seq
+    rng = random.Random(3)
+    for level, fams in enumerate(_SEQ_LEVELS):
+        seen = set()
+        for _ in range(3000):
+            shown, nxt, rule = _gen_seq(rng, level)
+            assert len(shown) == 5 and len(set(shown + [nxt])) == 6 and rule.endswith(".")
+            seen.add(tuple(shown))
+        assert len(seen) >= 500                                             # el nivel dificil ya no son 24 secuencias
+    for fam in (f for fams in _SEQ_LEVELS for f in fams):                   # reglas exactas de algunas familias
+        seq, _rule = fam(rng)
+        assert len(seq) == 6
+
+
+# --------------------------------------------------------------------------- v1.3.0: ilusiones nuevas, ojo magico con numeros, texto de publicacion
+def test_illusion_pool_has_ten_with_texts_for_each():
+    from paradoja.scene import ILLUSIONS
+    from paradoja.texts_es import ILL_ASK, ILL_NAME, ILL_TEXT
+    assert len(ILLUSIONS) == 10 == len(ILL_NAME) == len(ILL_ASK) == len(ILL_TEXT)
+    for kind in range(10):
+        instr, mid, rev = ILL_TEXT[kind]
+        assert instr and mid and rev
+
+
+def test_new_illusions_are_reachable_and_their_shader_exists():
+    src = (Path(__file__).parent.parent / "paradoja" / "shaders" / "scene.frag").read_text("utf-8")
+    for fn in ("illHermann", "illMullerLyer", "illKanizsa", "illZollner"):
+        assert f"vec3 {fn}(" in src
+    kinds = {a.kind for seed in range(1, 80) for a in _make("illusion", seed)[0].acts}
+    assert kinds == set(range(10))
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_magiceye_numbers_are_valid_two_digit_values(seed):
+    nums = [a.sym for seed2 in range(seed, seed + 25) for a in _make("magiceye", seed2)[0].acts if a.sym >= 0]
+    assert nums and all(10 <= n <= 99 for n in nums)
+
+
+def test_publish_block_is_clean_and_ready_to_paste(tmp_path):
+    from paradoja.metadata import AI_LABEL_NOTE, build_post
+    for mode in ACT_MODES + ["loop"]:
+        sc, tl = _make(mode, 77)
+        post = build_post(sc, tl)
+        paste = post["paste"]
+        assert "HASHTAGS" not in paste and "TÍTULO" not in paste and "http" not in paste       # sin etiquetas ni enlaces
+        assert paste.startswith(post["title"]) and paste.endswith(" ".join(post["tags"]))
+        assert 3 <= len(post["tags"]) <= 5 and post["tags"][-1] == "#ParadojaInfinita"             # Meta: maximo 5 hashtags
+        assert len(post["title"]) <= 110 and "📤" in paste and "➕" in paste
+    sc, tl = _make("riddle", 5)
+    path, title = write_metadata(tmp_path / "x.txt", sc, tl, "x.mp4")
+    only = (tmp_path / "x_publicar.txt").read_text("utf-8-sig").strip()
+    full = path.read_text("utf-8-sig")
+    assert only in full and full.index("COPIAR Y PEGAR") < full.index("TIPO DE VIDEO:") and AI_LABEL_NOTE in full
+    assert title == only.split("\n", 1)[0]
+
+
+def test_post_text_changes_between_videos_of_the_same_type():
+    from paradoja.metadata import build_post
+    pastes = {build_post(*_make("sync", seed))["paste"] for seed in range(1, 41)}
+    titles = {p.split("\n", 1)[0] for p in pastes}
+    assert len(pastes) >= 35 and len(titles) >= 8                  # antes: 4 titulos x 3 descripciones por tipo

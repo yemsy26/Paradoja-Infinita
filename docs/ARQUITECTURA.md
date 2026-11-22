@@ -47,7 +47,9 @@ El modo `loop` no tiene actos: toda la animación es periódica con periodo `dur
 - `u_actph` es el reloj de movimiento del acto: se congela al empezar la revelación (en `count`, 2 s antes, para poder contar; excepto en `swarm`, donde es la
   integral de una velocidad con rampa y frenada, ver `scene.swarm_clock`).
 - Las figuras comparten SDF (`shapeSDi`) para que el vocabulario geométrico sea común a todos los modos.
-- Los textos nunca se dibujan en el shader (excepto las etiquetas numéricas de la revelación del conteo): van en ASS.
+- Los textos nunca se dibujan en el shader (excepto las etiquetas numéricas de la revelación del conteo y de los vasos): van en ASS.
+- Los retos de texto (`u_scene = 10`) dibujan una tarjeta de lectura (`u_q` = semialto y centro) y símbolos flotantes según `u_kind`
+  (0 acertijo, 1 colores, 2 cálculo, 3 secuencia).
   Los dígitos de 7 segmentos usan `numSD`, que voltea la `y` (el SDF usa y hacia arriba, la imagen hacia abajo). Mantén el objetivo del reto fuera de la franja
   `config.SUB_BAND` (la que tapan los subtítulos).
 

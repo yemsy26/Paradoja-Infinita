@@ -58,9 +58,9 @@ con una llamada a comentar la nota, compartir y seguir la cuenta.
 | Categoría | Reto | Mecánica | Qué se pide en comentarios |
 |---|---|---|---|
 | Visual | **Anomalía** | Rejilla de figuras donde una difiere (color, tamaño, brillo, punto o giro) | ¿En qué segundo lo notaste? |
-| Visual | **Ilusión óptica** | Ouchi, café wall, Ebbinghaus, rejilla centelleante, espiral, muaré; se «desenmascaran» | ¿Cuántas te engañaron? |
+| Visual | **Ilusión óptica** | 10 ilusiones: Ouchi, café wall, Ebbinghaus, rejilla centelleante, espiral, muaré, Hermann, Müller-Lyer, Kanizsa y Zöllner; se «desenmascaran» | ¿Cuántas te engañaron? |
 | Visual | **Test de visión** | Voronoi fluctuante con un número o figura oculto por una ligera variación de tono | ¿Qué número/figura viste? |
-| Visual | **Ojo mágico** | Autoestereograma real con una figura 3D distinta por prueba | ¿Qué figura viste? |
+| Visual | **Ojo mágico** | Autoestereograma real con una figura o un número de dos cifras en 3D distinto por prueba | ¿Qué figura viste? |
 | Visual | **Contraste** | 4 variantes: ¿cambia el color? · ¿se aclara u oscurece? · ¿cuál es más oscuro? · ¿cuál es más claro? (la respuesta cambia según la prueba) | Tu respuesta antes de la revelación |
 | Reflejos | **Sincronización** | La figura gira a velocidad extrema y encaja en una silueta en **un solo frame** | ¿En qué número del contador pausaste? |
 | Atención | **Seguimiento** | Una partícula roja 2 s, se iguala, el enjambre se mezcla y se detiene | ¿Dónde quedó el punto rojo? |
@@ -72,8 +72,8 @@ con una llamada a comentar la nota, compartir y seguir la cuenta.
 | Memoria | **Memoria** | Memoriza 3 s, pantalla en blanco y la figura cambió | Qué figura cambió |
 | Mente | **Efecto Stroop** | Palabras de color con tinta distinta: di el color de la tinta | ¿Cuántas fallaste? |
 | Mente | **Cálculo** | Operaciones generadas con «trampa» de orden (el resultado obvio es incorrecto) | Tu resultado |
-| Mente | **Secuencia** | «¿Qué número sigue?» (aritmética, geométrica, cuadrados, Fibonacci, primos…) | El número que sigue |
-| Mente | **Acertijo** | Acertijos y preguntas trampa de `content/acertijos.json` (editable) | Tu respuesta |
+| Mente | **Secuencia** | «¿Qué número sigue?» (17 familias: aritméticas, geométricas, cuadrados, cubos, Fibonacci, alternadas, primos…; miles de series distintas) | El número que sigue |
+| Mente | **Acertijo** | Más de 120 acertijos y preguntas trampa de `content/acertijos.json` (editable) más acertijos con números generados (edades, bate y pelota, campanadas…) que nunca se repiten | Tu respuesta |
 | Especial | **Bucle infinito** | Perfect loop geométrico (el último frame empalma con el primero, audio incluido) | ¿Cuántas veces lo repetiste? |
 | Especial | **Mixto** | 5-7 retos distintos en un solo video | Puntaje de 0 a N |
 
@@ -82,8 +82,13 @@ con una llamada a comentar la nota, compartir y seguir la cuenta.
 El sistema está pensado para publicar varias veces al día sin repetir fórmula:
 
 - **Contenido generado, no plantillas:** cada operación, secuencia, conteo, conjunto de palabras o tablero es nuevo, así que
-  los retos de texto tienen variedad prácticamente ilimitada. Los acertijos salen de `content/acertijos.json`: añade
-  los tuyos con el formato `{"q": "pregunta", "a": "respuesta"}`.
+  los retos de texto tienen variedad prácticamente ilimitada. Los acertijos salen de `content/acertijos.json`
+  (añade los tuyos con el formato `{"q": "pregunta", "a": "respuesta"}`; ponlos al final para no alterar el historial) y
+  de 11 familias con números generados. Las secuencias salen de 17 familias con parámetros amplios (el nivel difícil ya
+  no son 24 series, sino miles).
+- **Texto de publicación rotativo:** título, frase de búsqueda, llamada a comentar, a compartir y a seguir se combinan
+  de forma distinta en cada video (más de 40 combinaciones por tipo), siguiendo la guía de Meta: sin enlaces, pocas
+  mayúsculas y como máximo cinco hashtags.
 - **Aleatorio inteligente:** para cada video se evalúan 24 semillas candidatas y se elige la más distinta de lo publicado
   recientemente (según `output/historial.json`): evita repetir el mismo reto, formato, paleta, figura, acertijo o título.
 - **Video mixto:** cambia de reto cada 8-12 s, lo que mantiene la atención y multiplica las combinaciones.
@@ -174,6 +179,7 @@ python main.py --mode loop --duration 64 --voice es-MX-DaliaNeural --codec hevc_
 | `--codec` | `auto`, `h264_nvenc`, `hevc_nvenc`, `libx264` | `auto` |
 | `--out` | Carpeta de salida | `output` |
 | `--keep-work` | Conserva audio, subtítulos y log de FFmpeg | no |
+| `--no-copy` | No copiar el texto de publicación al portapapeles (Windows) | copia |
 
 ## Salida generada
 
@@ -185,11 +191,16 @@ output/
     └── anomalia_estrella_3380163066/
         ├── anomalia_estrella_3380163066.mp4
         ├── anomalia_estrella_3380163066_portada.jpg
+        ├── anomalia_estrella_3380163066_publicar.txt
         └── anomalia_estrella_3380163066.txt
 ```
 
 El nombre sigue el patrón `<formato>_<detalle>_<semilla>` (por ejemplo `ilusion_espiral_998877`, `ishihara_74_8`,
 `calculo_operaciones_5`, `mixto_calculo-cambio-stroop_38`). El `.txt` contiene el borrador de publicación:
+
+`<nombre>_publicar.txt` contiene **solo** lo que se pega en la publicación (título, descripción y hashtags, sin
+etiquetas), y al terminar cada video ese texto queda **copiado en el portapapeles** (Windows; desactívalo con
+`--no-copy`): basta con pegarlo con Ctrl+V. El `.txt` completo empieza con ese mismo bloque y añade lo demás:
 
 ```text
 TIPO DE VIDEO:       Reto de Anomalía
@@ -198,8 +209,14 @@ TÍTULO SUGERIDO:     ...
 DESCRIPCIÓN (COPY):  ... (con llamada a comentar adaptada al modo + compartir + seguir)
 COMENTARIO FIJADO:   pregunta sencilla de una cifra para pegar y fijar
 PORTADA:             <slug>_portada.jpg (miniatura con el gancho a pantalla completa)
+ANTES DE PUBLICAR:   aviso de la etiqueta de IA (ver abajo)
 HASHTAGS:            3-5 etiquetas del modo, siempre #ParadojaInfinita
 ```
+
+**Etiqueta de IA.** Meta exige usar su herramienta de divulgación en el contenido orgánico con audio de aspecto
+realista creado digitalmente, y puede penalizar si no se declara ([anuncio de Meta](https://about.fb.com/news/2026/02/meta-prepares-for-2026-us-midterms/)).
+La narración de estos videos es una voz neuronal sintética, así que lo prudente es activar la «Etiqueta de IA» al
+publicar. Es una recomendación, no asesoría legal: comprueba la política vigente.
 
 Los títulos y descripciones se eligen entre varias versiones y evitan repetir los usados recientemente. Cada video se
 registra en `output/historial.json`, que usa la elección inteligente y la opción de estadísticas.

@@ -85,7 +85,7 @@ class Timeline:
             u["u_dot"] = MAGIC_DOT
         if act.type == "count":
             u["u_cnt"] = act.q
-        if act.type in ("cups", "simon"):
+        if act.type in ("cups", "simon", "stroop", "math", "sequence", "riddle"):
             u["u_q"] = act.q
         if act.arrays:
             u["u_n"] = act.n

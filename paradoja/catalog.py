@@ -25,7 +25,7 @@ def load_history(out_dir: Path) -> list:
 def entry_for(sc: Scene, slug: str, title: str) -> dict:
     return {"date": date.today().isoformat(), "seed": sc.seed, "mode": sc.mode, "slug": slug, "title": title,
             "types": sorted({a.type for a in sc.acts}) or ["loop"], "palette": sc.palette.name, "shape": sc.shape,
-            "riddles": [a.sym for a in sc.acts if a.type == "riddle"]}
+            "riddles": [a.sym for a in sc.acts if a.type == "riddle" and a.sym >= 0]}   # -1 = acertijo generado
 
 
 def append_history(out_dir: Path, entry: dict) -> None:

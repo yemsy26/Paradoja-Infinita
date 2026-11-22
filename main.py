@@ -16,7 +16,7 @@ from paradoja.audio import build_bed
 from paradoja.catalog import append_history, choose, entry_for, load_history, pick_mode, recent_titles, stats
 from paradoja.config import VideoSpec
 from paradoja.encoder import FfmpegEncoder, pick_codec
-from paradoja.metadata import MODE_LABEL, video_slug, write_metadata
+from paradoja.metadata import AI_LABEL_NOTE, MODE_LABEL, video_slug, write_metadata
 from paradoja.renderer import GpuRenderer
 from paradoja.scene import MODES, TYPES, build_scene
 from paradoja.script_es import build_script
@@ -37,6 +37,19 @@ MENU = """
   [4] Estadisticas y ultimos videos
   [0] Salir
 ------------------------------------------------------------------"""
+
+
+def copy_file_to_clipboard(path: Path) -> bool:
+    """Copia el contenido de un archivo UTF-8 al portapapeles de Windows (conserva tildes y emojis)."""
+    if sys.platform != "win32":
+        return False
+    safe = str(path).replace("'", "''")
+    cmd = f"Set-Clipboard -Value ((Get-Content -Raw -Encoding UTF8 -LiteralPath '{safe}').TrimEnd())"
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command", cmd], check=True, timeout=20, capture_output=True)
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def generate(mode: str, seed: int, args) -> int:
@@ -95,8 +108,13 @@ def generate(mode: str, seed: int, args) -> int:
     print("  " + " | ".join(info))
     if not args.keep_work:
         shutil.rmtree(work, ignore_errors=True)
+    post_file = meta.with_name(f"{meta.stem}_publicar.txt")
+    copied = (not getattr(args, "no_copy", False)) and copy_file_to_clipboard(post_file)
     print(f"Listo en {time.perf_counter() - t0:.1f}s -> {out}\n  Metadata -> {meta}"
-          + (f"\n  Portada  -> {cover}" if cover.exists() else ""))
+          + (f"\n  Portada  -> {cover}" if cover.exists() else "")
+          + f"\n  Publicar -> {post_file}"
+          + ("\n  El texto para publicar ya esta en el portapapeles: pegalo (Ctrl+V) en la publicacion." if copied else "")
+          + f"\n  Antes de publicar: {AI_LABEL_NOTE}")
     return 0
 
 
@@ -186,6 +204,7 @@ def main() -> int:
     ap.add_argument("--codec", default="auto", choices=["auto", "h264_nvenc", "hevc_nvenc", "libx264"])
     ap.add_argument("--out", type=Path, default=ROOT / "output")
     ap.add_argument("--keep-work", action="store_true", help="conserva audio/subtitulos/log intermedios")
+    ap.add_argument("--no-copy", action="store_true", help="no copiar el texto de publicacion al portapapeles")
     args = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")

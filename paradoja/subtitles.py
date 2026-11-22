@@ -34,6 +34,12 @@ def _bgr(rgb) -> str:
     return f"{b:02X}{g:02X}{r:02X}"
 
 
+def _luma(bgr: str) -> float:
+    """Luminosidad 0-1 de un color BGR en hexadecimal (para elegir texto claro u oscuro sobre una ficha)."""
+    b, g, r = (int(bgr[i:i + 2], 16) for i in (0, 2, 4))
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255
+
+
 def _ts(t: float) -> str:
     cs = round(max(0.0, t) * 100)
     return f"{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}"
@@ -115,7 +121,10 @@ def build_ass(path: Path, clips: list, tl: Timeline, spec: VideoSpec) -> Path:
                                     r"{\an9\fs96\c&H" + hl + r"&\fscx70\fscy70\t(0,120,\fscx100\fscy100)}" + str(k),
                                     (spec.width - 50, HUD_Y - 12)))
             for t0, t1, text, size, bgr, y in a.items:           # texto del reto (calculo, secuencia, palabras...)
-                color = r"\c&H" + bgr + "&" if bgr else ""
+                if bgr and y <= CAPTION_Y:       # gancho / respuesta: ficha de color de acento con texto de alto contraste
+                    color = r"\3c&H" + bgr + r"&\3a&H18&\c&H" + ("000000" if _luma(bgr) > 0.55 else "FFFFFF") + "&"
+                else:
+                    color = r"\c&H" + bgr + "&" if bgr else ""
                 fade = r"\fad(120,0)" if t0 > 0.05 else r"\fad(0,150)"    # el primer fotograma ya lleva texto
                 ev.append(_line(a.start + t0, a.start + t1, "Cap" if y <= CAPTION_Y else "Big",
                                 "{\\fs" + str(size) + color + fade + "}" + text, (cx, y)))

@@ -211,6 +211,12 @@ def _swarm(rng, ctx, a, st):
 
 
 def _magiceye(rng, ctx, a, st):
+    if rng.random() < 0.45:                     # numero de dos cifras en 3D (90 posibles; las figuras son 7)
+        n = _pick(rng, range(10, 100), st.setdefault("nums", []))
+        return dict(sym=n, shape=rng.randrange(len(SHAPES)), p=(rng.random(), rng.random()),
+                    q=(rng.random(), rng.random()), question="Desenfoca la vista y espera", rcap=f"ERA EL {n}",
+                    answer=str(n), voice=_voice(rng, a["i"], "magiceye", a["S"], "Desenfoca la vista y espera.",
+                                                T.MAGIC_MID, f"Era el {T.num_es(n)}. ¿Lo viste en 3D?"))
     shape = _pick(rng, range(len(SHAPES)), st.setdefault("shapes", []))
     gr = T.g(shape)
     reveal = f"Era {gr['el']} {gr['noun']}. ¿La viste en 3D?"
@@ -362,7 +368,8 @@ def _stroop(rng, ctx, a, st):
     items.append((S, a["length"] - 0.1, "TINTAS\\N" + "  ".join(c.upper() for c in inks), 70, "", 640))
     instr = "Di el color de la tinta, no lo que dice."
     voice = _first(rng, i, "stroop", S, instr) + [(S + 0.25, answer.capitalize() + ".")]
-    return dict(p=(rng.random(), rng.random()), items=tuple(items), question=instr, answer=answer, voice=tuple(voice))
+    return dict(p=(rng.random(), rng.random()), items=tuple(items), question=instr, answer=answer, voice=tuple(voice),
+                kind=1, q=(0.16, (640 - 960) / 1080))
 
 
 # --- cálculo
@@ -403,53 +410,133 @@ def _math(rng, ctx, a, st):
     items = ((0.2, S, q, _big(q), "", 640), (S, a["length"] - 0.1, f"{text} = {value}", _big(f"{text} = {value}"), "", 640))
     voice = _first(rng, i, "math", S, f"¿Cuánto es {spoken}?") + [(S + 0.25, f"Es {T.num_es(value)}. ¿Dijiste {T.num_es(wrong)}?")]
     return dict(p=(rng.random(), rng.random()), items=items, question=f"¿Cuánto es {text}?",
-                answer=f"{text} = {value} (trampa: {wrong})", voice=tuple(voice))
+                answer=f"{text} = {value} (trampa: {wrong})", voice=tuple(voice), kind=2, q=(0.15, (640 - 960) / 1080))
 
 
 # --- secuencia
+_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)
+
+
+def _terms(first, step, n=6):
+    """Genera n terminos aplicando step(anterior, indice)."""
+    seq = [first]
+    for j in range(n - 1):
+        seq.append(step(seq[-1], j))
+    return seq
+
+
+def _sq_arith_up(rng):
+    a, d = rng.randint(1, 30), rng.randint(2, 12)
+    return [a + d * j for j in range(6)], f"Suma {T.num_es(d)}."
+
+
+def _sq_arith_down(rng):
+    a, d = rng.randint(40, 99), rng.randint(3, 12)
+    return [a - d * j for j in range(6)], f"Resta {T.num_es(d)}."
+
+
+def _sq_arith_big(rng):
+    a, d = rng.randint(50, 200), rng.choice((15, 20, 25, 30, 35, 40, 45))
+    return [a + d * j for j in range(6)], f"Suma {T.num_es(d)}."
+
+
+def _sq_squares(rng):
+    s = rng.randint(1, 8)
+    return [(s + j) ** 2 for j in range(6)], "Son cuadrados."
+
+
+def _sq_double(rng):
+    a = rng.randint(1, 9)
+    return [a * 2 ** j for j in range(6)], "Multiplica por dos."
+
+
+def _sq_geom3(rng):
+    a = rng.randint(1, 4)
+    return [a * 3 ** j for j in range(6)], "Multiplica por tres."
+
+
+def _sq_tri(rng):
+    s = rng.randint(1, 6)
+    return [(s + j) * (s + j + 1) // 2 for j in range(6)], "Números triangulares."
+
+
+def _sq_alt(rng):
+    a, u, v = rng.randint(1, 20), rng.randint(3, 9), rng.randint(1, 2)
+    return _terms(a, lambda x, j: x + (u if j % 2 == 0 else -v)), f"Suma {T.num_es(u)}, resta {T.num_es(v)}."
+
+
+def _sq_diffinc(rng):
+    a, d0, k = rng.randint(1, 10), rng.randint(1, 4), rng.randint(1, 3)
+    return _terms(a, lambda x, j: x + d0 + k * j), f"Cada vez se suma {T.num_es(k)} más."
+
+
+def _sq_sqpm(rng):
+    s, sign = rng.randint(2, 8), rng.choice((1, -1))
+    return [(s + j) ** 2 + sign for j in range(6)], "Cuadrados más uno." if sign > 0 else "Cuadrados menos uno."
+
+
+def _sq_fib(rng):
+    a, b = rng.randint(1, 9), rng.randint(1, 9)
+    seq = [a, b]
+    for _ in range(4):
+        seq.append(seq[-1] + seq[-2])
+    return seq, "Suma los dos anteriores."
+
+
+def _sq_muladd(rng):
+    m, k = rng.choice(((2, 1), (2, -1), (2, 2), (2, 3), (3, 1), (3, -1), (3, -2)))
+    a = rng.randint(1, 4)
+    verb = f"suma {T.num_es(k)}" if k > 0 else f"resta {T.num_es(-k)}"
+    return _terms(a, lambda x, j: m * x + k), f"Multiplica por {T.num_es(m)} y {verb}."
+
+
+def _sq_cubes(rng):
+    s = rng.randint(1, 5)
+    return [(s + j) ** 3 for j in range(6)], "Son cubos."
+
+
+def _sq_interleave(rng):
+    a, p, b, q = rng.randint(1, 9), rng.randint(2, 5), rng.randint(30, 60), rng.randint(2, 6)
+    return [a, b, a + p, b - q, a + 2 * p, b - 2 * q], "Dos secuencias alternadas."
+
+
+def _sq_oblong(rng):
+    s = rng.randint(1, 6)
+    return [(s + j) * (s + j + 1) for j in range(6)], "Número por el siguiente."
+
+
+def _sq_primes(rng):
+    s = rng.randint(0, 5)
+    return list(_PRIMES[s:s + 6]), "Son números primos."
+
+
+def _sq_pow2plus(rng):
+    s, k = rng.randint(1, 3), rng.choice((1, -1))
+    return [2 ** (s + j) + k for j in range(6)], "Potencias de dos " + ("más uno." if k > 0 else "menos uno.")
+
+
+# familias por nivel de dificultad (el reto es mas dificil en los ultimos actos)
+_SEQ_LEVELS = ((_sq_arith_up, _sq_arith_down, _sq_squares, _sq_double),
+               (_sq_geom3, _sq_tri, _sq_alt, _sq_diffinc, _sq_sqpm, _sq_arith_big),
+               (_sq_fib, _sq_muladd, _sq_cubes, _sq_interleave, _sq_oblong, _sq_primes, _sq_pow2plus))
+
+
 def _gen_seq(rng, level: int):
-    """-> (numeros mostrados, siguiente, regla corta hablada)"""
-    kinds = (("arith", "square"), ("geom", "tri", "alt"), ("fib", "dbl1", "prime"))[level]
-    k = rng.choice(kinds)
-    if k == "arith":
-        a, d = rng.randint(1, 20), rng.randint(2, 9)
-        seq, rule = [a + d * j for j in range(6)], f"Suma {T.num_es(d)}."
-    elif k == "square":
-        s = rng.randint(1, 6)
-        seq, rule = [(s + j) ** 2 for j in range(6)], "Son cuadrados."
-    elif k == "geom":
-        a, r = rng.randint(1, 5), rng.choice((2, 3))
-        seq, rule = [a * r ** j for j in range(6)], f"Multiplica por {T.num_es(r)}."
-    elif k == "tri":
-        s = rng.randint(1, 4)
-        seq, rule = [(s + j) * (s + j + 1) // 2 for j in range(6)], "Suma uno más cada vez."
-    elif k == "alt":
-        a, u, v = rng.randint(1, 20), rng.randint(3, 9), rng.randint(1, 2)
-        seq, x = [a], a
-        for j in range(5):
-            x += u if j % 2 == 0 else -v
-            seq.append(x)
-        rule = f"Suma {T.num_es(u)}, resta {T.num_es(v)}."
-    elif k == "fib":
-        a, b = rng.randint(1, 4), rng.randint(1, 5)
-        seq = [a, b]
-        for _ in range(4):
-            seq.append(seq[-1] + seq[-2])
-        rule = "Suma los dos anteriores."
-    elif k == "dbl1":
-        a = rng.randint(1, 3)
-        seq = [a]
-        for _ in range(5):
-            seq.append(seq[-1] * 2 + 1)
-        rule = "Duplica y suma uno."
-    else:
-        seq, rule = [2, 3, 5, 7, 11, 13, 17][:6], "Son números primos."
-    return seq[:4 if k == "prime" else 5], seq[4 if k == "prime" else 5], rule
+    """-> (numeros mostrados, siguiente, regla corta hablada). 5 terminos visibles y el 6.o es la respuesta."""
+    while True:
+        seq, rule = rng.choice(_SEQ_LEVELS[level])(rng)
+        if len(set(seq)) == 6 and all(0 < x < 5000 for x in seq):       # sin sucesiones constantes ni cifras enormes
+            return seq[:5], seq[5], rule
 
 
 def _sequence(rng, ctx, a, st):
     S, i, prog = a["S"], a["i"], a["prog"]
-    shown, nxt, rule = _gen_seq(rng, 0 if prog < 0.34 else 1 if prog < 0.67 else 2)
+    seen = st.setdefault("seen", set())
+    for _ in range(12):                         # no repetir la misma secuencia dentro del video
+        shown, nxt, rule = _gen_seq(rng, 0 if prog < 0.34 else 1 if prog < 0.67 else 2)
+        if tuple(shown) not in seen:
+            break
+    seen.add(tuple(shown))
     seq_txt = ", ".join(map(str, shown))
     q, full = f"{seq_txt}, ?", f"{seq_txt}, {nxt}"
     items = ((0.2, S, q, _big(q), "", 640), (S, a["length"] - 0.1, full, _big(full), "", 600),
@@ -457,19 +544,111 @@ def _sequence(rng, ctx, a, st):
     voice = _first(rng, i, "sequence", S, "¿Qué número sigue en esta secuencia?") + \
         [(S + 0.25, f"Sigue el {T.num_es(nxt)}. {rule}")]
     return dict(p=(rng.random(), rng.random()), items=items, question=f"¿Qué número sigue? {q}",
-                answer=f"{nxt} ({rule.rstrip('.').lower()})", voice=tuple(voice))
+                answer=f"{nxt} ({rule.rstrip('.').lower()})", voice=tuple(voice), kind=3, q=(0.155, (660 - 960) / 1080))
+
+
+# Acertijos con números generados: la estructura es conocida (trampas clásicas) pero los datos cambian siempre, así
+# que nunca se repite el mismo enunciado. Devuelven (pregunta, respuesta).
+_DAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_PAIRS = (("un bate", "una pelota", "El bate", "la pelota"), ("una raqueta", "una pelota", "La raqueta", "la pelota"),
+          ("un libro", "un marcapáginas", "El libro", "el marcapáginas"), ("una jarra", "un vaso", "La jarra", "el vaso"))
+
+
+def _rid_age(rng):
+    son, diff = rng.randint(3, 14), rng.randint(24, 36)
+    return (f"Entre padre e hijo suman {2 * son + diff} años y el padre tiene {diff} más. ¿Cuántos años tiene el hijo?",
+            f"{T.num_es(son).capitalize()} años.")
+
+
+def _rid_bat(rng):
+    cents = rng.choice((5, 10, 15, 20, 25))
+    a, b, A, bb = rng.choice(_PAIRS)
+    total = f"{1 + 2 * cents / 100:.2f}".replace(".", ",")
+    return (f"{a.capitalize()} y {b} cuestan {total} €. {A} cuesta 1 € más que {bb}. ¿Cuánto cuesta {bb}?",
+            f"{cents} céntimos.")
+
+
+def _rid_machines(rng):
+    n = rng.choice((3, 4, 6, 7, 8, 9))
+    return (f"{T.num_es(n).capitalize()} máquinas hacen {T.num_es(n)} piezas en {T.num_es(n)} minutos. "
+            f"¿Cuánto tardan 100 máquinas en hacer 100 piezas?", f"{T.num_es(n).capitalize()} minutos.")
+
+
+def _rid_lily(rng):
+    d = rng.randint(20, 60)
+    return (f"Un nenúfar duplica su tamaño cada día y cubre un lago en {d} días. ¿Cuándo cubre la mitad?", f"El día {d - 1}.")
+
+
+def _rid_bells(rng):
+    n, k = rng.choice((3, 4, 5, 6, 7)), rng.choice((1, 2, 3))
+    m = rng.randint(n + 2, 12)
+    return (f"Un reloj da {n} campanadas en {k * (n - 1)} segundos. ¿Cuánto tarda en dar {m}?", f"{k * (m - 1)} segundos.")
+
+
+def _rid_cats(rng):
+    c, b = rng.choice((2, 3, 4, 5)), rng.choice((50, 60, 80, 100))
+    return (f"Si {T.num_es(c)} gatos cazan {T.num_es(c)} ratones en {T.num_es(c)} minutos, ¿cuántos gatos cazan {b} "
+            f"ratones en {b} minutos?", f"{T.num_es(c).capitalize()} gatos.")
+
+
+def _rid_coins(rng):
+    x, y = rng.choice(((20, 10), (50, 20), (50, 10), (20, 5), (10, 5), (50, 5), (5, 2), (10, 2), (20, 2)))
+    return (f"Dos monedas suman {x + y} céntimos y una no es de {y} céntimos. ¿Cuáles son?", f"Una de {x} y una de {y}.")
+
+
+def _rid_digits(rng):
+    hi, lo = rng.randint(3, 9), rng.randint(1, 2)
+    return (f"Soy un número de dos cifras: suman {hi + lo} y, si las invierto, el número baja {9 * (hi - lo)}. ¿Cuál soy?",
+            f"{10 * hi + lo}.")
+
+
+def _rid_piles(rng):
+    d, t = rng.choice((10, 20, 30, 40)), rng.choice((60, 80, 100, 120))
+    return (f"Reparto {t} monedas en dos montones y uno tiene {d} más que el otro. ¿Cuántas tiene el mayor?", f"{(t + d) // 2}.")
+
+
+def _rid_days(rng):
+    k = rng.randrange(7)
+    return (f"Si anteayer fue {_DAYS[k]}, ¿qué día será pasado mañana?", f"{_DAYS[(k + 4) % 7].capitalize()}.")
+
+
+def _rid_half(rng):
+    a, b = rng.choice((10, 12, 14, 15, 18, 20, 24, 30, 40)), rng.randint(5, 20)
+    return (f"¿Cuánto es {a} dividido entre medio, más {b}?", f"{2 * a + b}.")
+
+
+_RIDDLE_FAMILIES = (_rid_age, _rid_bat, _rid_machines, _rid_lily, _rid_bells, _rid_cats, _rid_coins, _rid_digits,
+                    _rid_piles, _rid_days, _rid_half)
+
+
+RIDDLE_Y = 690          # centro del texto del acertijo (px); deja libre la fila del gancho
+
+
+def _riddle_layout(q: str) -> tuple:
+    """(texto con saltos ASS, tamaño): el bloque nunca debe invadir la fila del gancho ni la franja de subtítulos."""
+    for width, size in ((24, 84), (28, 72), (32, 64), (36, 58)):
+        lines = textwrap.wrap(q, width)
+        if len(lines) * size * 1.2 <= 420:
+            break
+    return "\\N".join(lines), size
 
 
 def _riddle(rng, ctx, a, st):
     S, i = a["S"], a["i"]
     riddles = load_riddles()
-    idx = _pick(rng, range(len(riddles)), st.setdefault("riddles", []))
-    q, ans = riddles[idx]["q"], riddles[idx]["a"]
-    wq = "\\N".join(textwrap.wrap(q, 24))
-    wa = "RESPUESTA\\N" + "\\N".join(textwrap.wrap(ans, 24))
-    items = ((0.2, S, wq, 84, "", 600), (S, a["length"] - 0.1, wa, 84, "", 600))
+    if rng.random() < 0.3:                      # acertijo con números generados (nunca se repite el enunciado)
+        fam = _pick(rng, _RIDDLE_FAMILIES, st.setdefault("fam", []))
+        (q, ans), idx = fam(rng), -1
+    else:
+        idx = _pick(rng, range(len(riddles)), st.setdefault("riddles", []))
+        q, ans = riddles[idx]["q"], riddles[idx]["a"]
+    wq, qsize = _riddle_layout(q)
+    wa, asize = _riddle_layout(ans)
+    items = ((0.2, S, wq, qsize, "", RIDDLE_Y), (S, a["length"] - 0.1, "RESPUESTA\\N" + wa, asize, "", RIDDLE_Y))
+    block = max((wq.count("\\N") + 1) * qsize, (wa.count("\\N") + 2) * asize) * 1.2          # alto del texto mas alto (px)
     voice = ((0.30, f"{T.SPOKEN_LABEL['riddle']} {T.NUMS[i]}. {q}"), (S + 0.25, ans))
-    return dict(sym=idx, p=(rng.random(), rng.random()), items=items, question=q, answer=ans, voice=voice)
+    return dict(sym=idx, p=(rng.random(), rng.random()), items=items, question=q, answer=ans, voice=voice,
+                kind=0, q=((block / 2 + 55) / 1080, (RIDDLE_Y - 960) / 1080))
 
 
 # --- vasos (¿dónde está la bola?)
