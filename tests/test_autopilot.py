@@ -300,6 +300,8 @@ def build(tmp_path, handler=None, *, dry=False, kinds=("foto", "video"), **cfg_k
     counter = iter(range(1, 100))
 
     def runner(cmd, **kw):
+        if cmd[1] == "-c":                                       # comprobacion de modulos del Python de los generadores
+            return SimpleNamespace(returncode=0, stdout=b"MISSING:", stderr=b"")
         gen_calls.append(cmd)
         make_files(tmp_path, "foto" if cmd[1].endswith("generador_imagenes.py") else "video", n=next(counter))
         return SimpleNamespace(returncode=0, stdout=b"ok", stderr=b"")
@@ -550,3 +552,61 @@ def test_cli_refuses_a_second_instance(tmp_path, monkeypatch):
     finally:
         first.release()
     logging.getLogger("autopiloto").handlers.clear()
+
+
+# --------------------------------------------------------------------------- Python y FFmpeg de los generadores
+def test_generators_use_the_project_venv_python_when_it_exists(tmp_path, monkeypatch):
+    import sys
+    assert media.project_python(tmp_path) == sys.executable                      # sin .venv: el Python actual
+    exe = tmp_path / ".venv" / "Scripts" / "python.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+    assert media.project_python(tmp_path) == str(exe)                            # con .venv: ese (alli estan moderngl y edge-tts)
+    monkeypatch.setattr(media, "project_python", lambda root=None: "/ruta/venv/python")
+    cfg = Config(image_out=tmp_path, video_out=tmp_path)
+    assert media.video_command(cfg)[0] == "/ruta/venv/python" and media.image_command(cfg)[0] == "/ruta/venv/python"
+    assert media.video_command(cfg, python="otro")[0] == "otro"
+
+
+def test_missing_modules_detection():
+    import sys
+    assert media.missing_modules(sys.executable, ["os", "modulo_que_no_existe_xyz"]) == ["modulo_que_no_existe_xyz"]
+    assert media.missing_modules(sys.executable, ["os", "json"]) == []
+    fake = lambda out, rc=0, err=b"": (lambda cmd, **kw: SimpleNamespace(returncode=rc, stdout=out, stderr=err))   # noqa: E731
+    assert media.missing_modules("py", ["a"], fake(b"aviso" + bytes([10]) + b"MISSING:moderngl,edge_tts" + bytes([10]))) \
+        == ["moderngl", "edge_tts"]
+    with pytest.raises(media.GenerationError, match="no funciona"):
+        media.missing_modules("py", ["a"], fake(b"", 1, b"Traceback" + bytes([10]) + b"boom"))
+    with pytest.raises(media.GenerationError, match="no se pudo ejecutar"):
+        media.missing_modules("py", ["a"], lambda cmd, **kw: (_ for _ in ()).throw(FileNotFoundError("no existe")))
+
+
+def test_reel_task_explains_which_module_is_missing_instead_of_a_traceback(tmp_path):
+    auto, http, gen = build(tmp_path)
+    base = auto.runner
+
+    def runner(cmd, **kw):
+        if cmd[1] == "-c":
+            return SimpleNamespace(returncode=0, stdout=b"MISSING:moderngl", stderr=b"")
+        return base(cmd, **kw)
+
+    auto.runner = runner
+    out = auto.execute("video")
+    assert out.status == "error" and "moderngl" in out.detail and "pip install -r requirements.txt" in out.detail
+    assert not gen and not http.calls                                              # ni se lanza el generador ni se publica
+    assert auto.state.data["dias"]["2026-11-23"]["video"]["estado"] == "error"
+
+
+def test_ffmpeg_is_found_in_the_winget_folder(tmp_path, monkeypatch):
+    import os
+    monkeypatch.setattr(media.shutil, "which", lambda name: None)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("PATH", "ruta_base")
+    assert media.ensure_ffmpeg_on_path() is False
+    bindir = tmp_path / "Microsoft" / "WinGet" / "Packages" / "Gyan.FFmpeg_x" / "ffmpeg-8.0-full_build" / "bin"
+    bindir.mkdir(parents=True)
+    (bindir / "ffmpeg.exe").write_bytes(b"")
+    assert media.ensure_ffmpeg_on_path() is True
+    assert os.environ["PATH"].split(os.pathsep)[0] == str(bindir)
+    monkeypatch.setattr(media.shutil, "which", lambda name: "/usr/bin/" + name)
+    assert media.ensure_ffmpeg_on_path() is True

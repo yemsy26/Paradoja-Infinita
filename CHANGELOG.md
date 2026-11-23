@@ -3,6 +3,14 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.6.1] - 2026-11-23
+
+### Corregido
+- Al lanzar el autopiloto desde otro Python (conda, Python del sistema), el Reel fallaba con `No module named 'moderngl'`
+  porque los generadores se ejecutaban con ese mismo Python (las imágenes no, porque solo necesitan Pillow). Ahora usan el
+  Python del `.venv` del proyecto si existe, comprueban antes que tenga los módulos necesarios (con un mensaje claro y el
+  comando para instalarlos) y añaden al PATH el FFmpeg instalado por winget cuando no está.
+
 ## [1.6.0] - 2026-11-23
 
 Autopiloto: genera y publica solo en la página de Facebook.

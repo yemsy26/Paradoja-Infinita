@@ -13,7 +13,7 @@ import dataclasses
 import sys
 from pathlib import Path
 
-from paradoja.autopilot import core
+from paradoja.autopilot import core, media
 from paradoja.autopilot.envfile import ROOT, Config, load_env
 from paradoja.autopilot.graph import GraphClient, GraphError
 
@@ -62,6 +62,11 @@ def main(argv=None) -> int:
         log.error("Corrige %s (hay un modelo en .env.example) y vuelve a ejecutar.", args.env.name)
         return 2
     client = GraphClient(cfg.page_id, cfg.token, cfg.version, log=log) if cfg.page_id and cfg.token else None
+    if not args.check:                                       # entorno de los generadores (imagen y Reel)
+        log.info("Los generadores se ejecutan con: %s", media.project_python())
+        if not media.ensure_ffmpeg_on_path():
+            log.warning("FFmpeg/ffprobe no están en el PATH: los Reels no se podrán generar (las imágenes sí). "
+                        "Ejecuta iniciar.bat una vez para instalarlo.")
 
     if args.check:
         try:

@@ -86,6 +86,8 @@ En Windows, `iniciar_autopiloto.bat` hace lo mismo (comprueba el entorno, el `.e
 | `código 368` | Meta marcó la acción como abusiva: para el autopiloto, revisa la página en Meta Business Suite y baja el ritmo. |
 | `1363040` / `1363127` / `1363128` / `1363129` | El video no cumple relación de aspecto, resolución, duración o fps (el autopiloto lo detecta antes con `ffprobe`). |
 | `resultado AMBIGUO` | Mira tu página: si la publicación está, no hagas nada; si no, usa `--ahora`. |
+| `le faltan módulos: moderngl...` | Al Python de los generadores le faltan paquetes. El autopiloto usa el `.venv` del proyecto si existe (da igual desde qué entorno lo lances); si no, ejecuta el `pip install -r requirements.txt` que indica el mensaje, o usa `iniciar_autopiloto.bat`. |
+| `FFmpeg/ffprobe no están en el PATH` | Ejecuta `iniciar.bat` una vez (instala FFmpeg con winget); el autopiloto lo encuentra solo en esa carpeta. |
 | `No se pudo generar ...` | Falló `main.py` o `generador_imagenes.py` (GPU, FFmpeg, red de la voz): el log trae las últimas líneas. |
 
 ## 6. Límites

@@ -145,6 +145,11 @@ class Autopilot:
         cfg = self.cfg
         cmd, out_dir = ((media.image_command(cfg), cfg.image_out) if kind == "foto"
                         else (media.video_command(cfg), cfg.video_out))
+        missing = media.missing_modules(cmd[0], media.REQUIRED_MODULES[kind], self.runner)
+        if missing:                                     # p. ej. lanzado desde conda: falta moderngl para los Reels
+            raise media.GenerationError(
+                f"al Python de los generadores ({cmd[0]}) le faltan módulos: {', '.join(missing)}. Instálalos con "
+                f'"{cmd[0]}" -m pip install -r requirements.txt  (o usa iniciar_autopiloto.bat, que prepara el entorno).')
         LOG.info("Generando %s (%s)...", KINDS[kind], Path(cmd[1]).name)
         since, t0 = time.time() - 5, time.monotonic()
         media.run_generator(cmd, cfg.gen_timeout_min * 60, self.runner)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -29,16 +30,67 @@ class Artifact:
     source: Path               # `_publicar.txt` de donde salio el copy
 
 
+# --------------------------------------------------------------------------- entorno de los generadores
+# Modulos que necesita cada generador (el video usa la GPU y la voz; la imagen solo Pillow y NumPy)
+REQUIRED_MODULES = {"foto": ("PIL", "numpy"), "video": ("moderngl", "edge_tts", "numpy")}
+
+
+def _text(x) -> str:
+    return x.decode("utf-8", "replace") if isinstance(x, bytes) else (x or "")
+
+
+def project_python(root: Path = ROOT) -> str:
+    """Python con el que se lanzan los generadores: el del `.venv` del proyecto si existe (alli estan moderngl,
+    edge-tts y Pillow), aunque el autopiloto se haya ejecutado desde otro entorno (conda, Python del sistema...)."""
+    for rel in ((".venv", "Scripts", "python.exe"), (".venv", "bin", "python")):
+        candidate = Path(root).joinpath(*rel)
+        if candidate.is_file():
+            return str(candidate)
+    return sys.executable
+
+
+def missing_modules(python: str, modules, runner=subprocess.run) -> list:
+    """Modulos de `modules` que ese Python no puede importar (lista vacia = todo en orden)."""
+    code = "import importlib.util as u,sys;print('MISSING:'+','.join(m for m in sys.argv[1:] if u.find_spec(m) is None))"
+    try:
+        proc = runner([python, "-c", code, *modules], capture_output=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise GenerationError(f"no se pudo ejecutar {python}: {e}") from None
+    for line in _text(proc.stdout).splitlines():
+        if line.startswith("MISSING:"):
+            return [m for m in line[len("MISSING:"):].split(",") if m]
+    if proc.returncode != 0:
+        tail = " ".join(_text(proc.stderr).strip().splitlines()[-2:])
+        raise GenerationError(f"{python} no funciona: {tail}")
+    return []
+
+
+def ensure_ffmpeg_on_path() -> bool:
+    """True si ffmpeg y ffprobe estan en el PATH. Si no, prueba la carpeta donde winget instala FFmpeg (lo mismo que hace
+    iniciar.bat) y la añade al PATH de este proceso, para que el autopiloto funcione aunque no se lance con el .bat."""
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        return True
+    base = os.environ.get("LOCALAPPDATA")
+    if base:
+        for pkg in sorted(Path(base, "Microsoft", "WinGet", "Packages").glob("Gyan.FFmpeg*")):
+            for bindir in sorted(pkg.glob("ffmpeg-*/bin")):
+                if (bindir / "ffmpeg.exe").exists():
+                    os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"
+                    return True
+    return False
+
+
 # --------------------------------------------------------------------------- comandos y ejecucion
-def image_command(cfg: Config, python: str = sys.executable) -> list:
+def image_command(cfg: Config, python: str | None = None) -> list:
     """generador_imagenes.py en modo aleatorio inteligente: una imagen, sin tocar el portapapeles."""
-    return [python, str(ROOT / "generador_imagenes.py"), "--modo", "aleatorio", "--count", "1", "--no-copy",
-            "--out", str(cfg.image_out)]
+    return [python or project_python(), str(ROOT / "generador_imagenes.py"), "--modo", "aleatorio", "--count", "1",
+            "--no-copy", "--out", str(cfg.image_out)]
 
 
-def video_command(cfg: Config, python: str = sys.executable) -> list:
+def video_command(cfg: Config, python: str | None = None) -> list:
     """main.py en modo aleatorio inteligente: un video, sin tocar el portapapeles."""
-    return [python, str(ROOT / "main.py"), "--mode", "random", "--count", "1", "--no-copy", "--out", str(cfg.video_out)]
+    return [python or project_python(), str(ROOT / "main.py"), "--mode", "random", "--count", "1", "--no-copy",
+            "--out", str(cfg.video_out)]
 
 
 def run_generator(cmd: list, timeout_s: float, runner=subprocess.run, cwd: Path = ROOT) -> str:
@@ -50,9 +102,6 @@ def run_generator(cmd: list, timeout_s: float, runner=subprocess.run, cwd: Path 
         raise GenerationError(f"el generador tardó más de {timeout_s / 60:.0f} min y se canceló") from None
     except OSError as e:
         raise GenerationError(f"no se pudo ejecutar el generador: {e}") from None
-    def _text(x) -> str:
-        return x.decode("utf-8", "replace") if isinstance(x, bytes) else (x or "")
-
     text = _text(proc.stdout) + _text(proc.stderr)
     if proc.returncode != 0:
         tail = "\n".join(text.strip().splitlines()[-8:])
