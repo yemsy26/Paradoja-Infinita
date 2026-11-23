@@ -116,7 +116,8 @@ usa GPU ni FFmpeg) y solo comparte `spin.py`, `copy_es.BRAND_TAG` y `acts._gen_s
 
 ## Autopiloto
 
-`autopiloto.py` → `autopilot/core.py` (`Autopilot`: `trigger` elige el retraso y programa, `execute` genera, `publish` envía) →
+`autopiloto.py` → `autopilot/core.py` (`Autopilot`: `plan`/`start_day` programan las franjas pendientes de cada tipo,
+`execute` genera, `publish` anota y envía) → `autopilot/state.py` (`State`: estado diario persistente) →
 `media.py` (ejecuta los generadores con `subprocess`, localiza el `_publicar.txt` más reciente y comprueba requisitos con
 `ffprobe`) → `graph.py` (`GraphClient`: `post_photo`, `post_reel`, `check`). Todo se inyecta (HTTP, `subprocess`, reloj, `sleep`,
 planificador) para probarlo sin red ni GPU (`tests/test_autopilot.py`).
@@ -125,7 +126,11 @@ planificador) para probarlo sin red ni GPU (`tests/test_autopilot.py`).
   llegar a Meta: no se reintenta, se anota «ambiguo» y cuenta como publicada). Un fallo de generación no se confunde con uno
   de publicación, y los reintentos de publicación no vuelven a renderizar.
 - El token solo vive en `Config` (que lo enmascara) y en las llamadas; `redact()` lo borra de mensajes y del log.
-- Estado y bloqueo: `autopiloto_estado.json` (por día y tarea) y `autopiloto.lock` (`msvcrt`/`fcntl`, se libera si el proceso muere).
+- Estado y bloqueo: `estado_autopiloto.json` (por día: contadores, `publicaciones` con archivo e id y estado de cada franja
+  `foto@11:30`) y `autopiloto.lock` (`msvcrt`/`fcntl`, se libera si el proceso muere). `State` escribe de forma atómica
+  (temporal + `fsync` + `os.replace`, con copia `.bak`) y `Autopilot.publish` anota la franja como `en_curso` **antes** de
+  llamar a Meta: si el proceso muere, al reabrir queda `ambigua` y no se repite. `plan` reparte el cupo de cada tipo
+  (`MAX_FOTOS_DIA`, `MAX_VIDEOS_DIA`) entre las franjas pendientes por orden de hora; `ensure_plan` replanifica a medianoche.
 - Para otro destino (p. ej. Instagram) basta con un cliente nuevo con los mismos métodos y pasarlo a `Autopilot`.
 
 ## Elección inteligente

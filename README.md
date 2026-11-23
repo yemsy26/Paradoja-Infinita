@@ -301,18 +301,21 @@ opción 6). Sin ellas usa Arial Black / Segoe UI Black / Impact del sistema. Sol
 
 ## Autopiloto: publicar solo
 
-`autopiloto.py` genera y **publica en tu página de Facebook** con la Graph API oficial: una imagen (`generador_imagenes.py
---modo aleatorio`) hacia las 11:30 y un Reel (`main.py --mode random`) hacia las 18:00, cada una con un retraso aleatorio de
-1 a 15 minutos. Lee `PAGE_ID` y `PAGE_ACCESS_TOKEN` de un archivo `.env` (copia `.env.example`; **nunca** lo subas a Git).
+`autopiloto.py` genera y **publica en tu página de Facebook** con la Graph API oficial: imágenes (`generador_imagenes.py
+--modo aleatorio`) y Reels (`main.py --mode random`) en las franjas que pongas (`HORARIOS_FOTOS=11:30,17:00`,
+`HORARIOS_VIDEOS=18:00`, con límites propios `MAX_FOTOS_DIA` y `MAX_VIDEOS_DIA`), cada una con un retraso aleatorio de 1 a
+15 minutos. Lee `PAGE_ID` y `PAGE_ACCESS_TOKEN` de un archivo `.env` (copia `.env.example`; **nunca** lo subas a Git).
 
 ```powershell
 python autopiloto.py --check               # comprueba el token y la página, sin publicar
 python autopiloto.py --dry-run --ahora foto  # ensayo: genera pero no publica
+python autopiloto.py --estado              # lo publicado hoy y lo pendiente (solo lee)
 python autopiloto.py                       # modo autopiloto (o iniciar_autopiloto.bat en Windows)
 ```
 
 Los errores del render o de la API se anotan en `autopiloto.log` y el programa sigue vivo; lo publicado cada día queda en
-`autopiloto_estado.json` (sin duplicados al reiniciar, máximo `MAX_POSTS_DIA`). Los Reels siguen la guía oficial (inicio,
+`estado_autopiloto.json` (con escritura atómica: si cierras el programa o reinicias Windows recuerda cuántas fotos y vídeos
+salieron hoy, con su archivo e id, y al volver programa solo las franjas pendientes dentro del límite diario). Los Reels siguen la guía oficial (inicio,
 subida con reanudación y finalización) y se marcan como contenido con IA. Guía de credenciales, ajustes y errores frecuentes
 en [docs/AUTOPILOTO.md](docs/AUTOPILOTO.md).
 

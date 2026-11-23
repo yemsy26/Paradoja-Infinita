@@ -3,6 +3,32 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.7.0] - 2026-11-23
+
+Autopiloto: estado diario persistente, varios horarios y límites independientes.
+
+### Añadido
+- **Estado diario en `estado_autopiloto.json`** (`paradoja/autopilot/state.py`): por cada día guarda cuántas fotos y vídeos
+  se publicaron, qué archivo e id se subió y el estado de cada franja (`programada`, `en_curso`, `ejecutada`, `ambigua`,
+  `error`, `omitida` con motivo). Escritura atómica (temporal + `fsync` + `os.replace`, con copia `.bak`), recuperación si el
+  archivo se daña y migración automática del `autopiloto_estado.json` anterior.
+- **Anotación previa a publicar**: la franja queda `en_curso` en disco antes de llamar a Meta. Si el programa muere o Windows
+  se reinicia justo entonces, al volver pasa a *ambigua* y no se repite sola. Un archivo ya subido tampoco se repite.
+- **Varias franjas y límites propios**: `HORARIOS_FOTOS` y `HORARIOS_VIDEOS` (listas separadas por comas) con
+  `MAX_FOTOS_DIA` y `MAX_VIDEOS_DIA` independientes (`.env` y `.env.example`); opciones `--fotos`, `--videos`, `--max-fotos`
+  y `--max-videos`.
+- **Plan al arrancar**: se lee el estado, se muestra el resumen de hoy en la consola y se programan solo las franjas
+  pendientes que caben en el límite de cada tipo (las demás se anotan como omitidas, con su motivo). Una franja pasada se
+  recupera dentro de `TOLERANCIA_HORAS`; la hora elegida se conserva tras un reinicio; a medianoche se replanifica.
+- `--estado`: muestra lo publicado hoy y lo pendiente sin publicar ni modificar nada (se puede usar con el autopiloto en marcha).
+
+### Cambiado
+- El candado se toma antes de leer el estado (un segundo autopiloto ya no puede alterar lo que el primero tiene en curso).
+- `FOTO_HORA`, `VIDEO_HORA` y `MAX_POSTS_DIA` quedan en desuso (las dos primeras siguen valiendo con un aviso;
+  `MAX_POSTS_DIA` se ignora).
+- Pruebas de reinicio en `tests/test_autopilot.py`: cierre y reapertura sin duplicados, corte durante la generación y durante
+  la publicación, escritura atómica, archivo dañado, migración, límites por tipo y cambio de día.
+
 ## [1.6.1] - 2026-11-23
 
 ### Corregido

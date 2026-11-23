@@ -93,11 +93,14 @@ so nothing repeats. Put your `.ttf` fonts (Montserrat, Poppins, Comic Neue, Anto
 
 ## Autopilot
 
-`autopiloto.py` generates and **publishes to your Facebook Page** through the official Graph API: an image around 11:30 and a
-Reel around 18:00, each delayed by a random 1-15 minutes. It reads `PAGE_ID` and `PAGE_ACCESS_TOKEN` from a `.env` file (copy
+`autopiloto.py` generates and **publishes to your Facebook Page** through the official Graph API: images and Reels
+in the time slots you configure (`HORARIOS_FOTOS=11:30,17:00`, `HORARIOS_VIDEOS=18:00`, with separate daily caps
+`MAX_FOTOS_DIA` / `MAX_VIDEOS_DIA`), each delayed by a random 1-15 minutes. It reads `PAGE_ID` and `PAGE_ACCESS_TOKEN` from a `.env` file (copy
 `.env.example`; never commit it). Use `--check` to test the token, `--dry-run --ahora foto` to rehearse without publishing and
 no arguments to run the daily schedule. Render or API failures go to `autopiloto.log` and the program keeps running; what was
-published each day is kept in `autopiloto_estado.json` so nothing is duplicated. Reels follow the official three-phase
+published each day (files, post ids, executed/skipped slots) is saved atomically in `estado_autopiloto.json`: after a closed
+program or a Windows reboot it schedules only the pending slots within the daily caps, so nothing is duplicated
+(`--estado` prints today's summary without touching anything). Reels follow the official three-phase
 flow (start, resumable upload, finish) and are flagged as AI content. Setup and troubleshooting: `docs/AUTOPILOTO.md`
 (Spanish). The random delay is cosmetic: it does not protect against Meta's originality and spam policies.
 

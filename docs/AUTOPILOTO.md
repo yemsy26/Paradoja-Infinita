@@ -1,15 +1,17 @@
 # Autopiloto
 
-`autopiloto.py` se queda en marcha y, cada día, **genera y publica solo** en tu página de Facebook:
+`autopiloto.py` se queda en marcha y, cada día, **genera y publica solo** en tu página de Facebook, en las franjas que
+configures (por defecto una de cada tipo):
 
-| Hora base | Qué hace | Cómo |
-|---|---|---|
-| 11:30 | Una **imagen** del feed | `generador_imagenes.py --modo aleatorio` → `POST /{page_id}/photos` |
-| 18:00 | Un **Reel** | `main.py --mode random` → `POST /{page_id}/video_reels` (inicio, subida y finalización) |
+| Franjas (`.env`) | Límite diario | Qué hace | Cómo |
+|---|---|---|---|
+| `HORARIOS_FOTOS=11:30` | `MAX_FOTOS_DIA=1` | **Imágenes** del feed | `generador_imagenes.py --modo aleatorio` → `POST /{page_id}/photos` |
+| `HORARIOS_VIDEOS=18:00` | `MAX_VIDEOS_DIA=1` | **Reels** | `main.py --mode random` → `POST /{page_id}/video_reels` (inicio, subida y finalización) |
 
-A cada hora base se le suma un **retraso aleatorio de 1 a 15 minutos** (distinto cada vez y cada día). El texto sale del
-`_publicar.txt` más reciente que dejó el generador. Todo queda en `autopiloto.log` y cualquier error se registra sin
-detener el programa.
+Cada lista admite **varias horas separadas por comas** (`HORARIOS_FOTOS=09:00,13:30,20:00`) y cada tipo tiene su **propio
+límite diario**. A cada franja se le suma un **retraso aleatorio de 1 a 15 minutos** (distinto cada vez y cada día). El texto
+sale del `_publicar.txt` más reciente que dejó el generador. Todo queda en `autopiloto.log` y cualquier error se registra
+sin detener el programa. Lo publicado cada día se guarda en `estado_autopiloto.json`: ver «Estado diario y reinicios».
 
 ## 1. Credenciales (`.env`)
 
@@ -43,11 +45,12 @@ python autopiloto.py --check              # comprueba el token y muestra el nomb
 python autopiloto.py --dry-run --ahora foto   # genera una imagen y enseña qué publicaría, sin publicar
 python autopiloto.py --ahora foto         # publica de verdad UNA imagen, ya
 python autopiloto.py --ahora video        # publica de verdad UN Reel, ya
-python autopiloto.py                      # modo autopiloto: se queda esperando las horas
+python autopiloto.py --estado             # enseña lo publicado hoy y lo pendiente (solo lee: no publica ni toca nada)
+python autopiloto.py                      # modo autopiloto: se queda esperando las franjas
 ```
 
 En Windows, `iniciar_autopiloto.bat` hace lo mismo (comprueba el entorno, el `.env` y FFmpeg). Se puede cambiar todo en el
-`.env` o con opciones: `--foto 10:00 --video 19:30 --jitter 2-10 --dry-run`.
+`.env` o con opciones (ganan al `.env`): `--fotos 09:00,17:30 --videos 19:30 --max-fotos 2 --max-videos 1 --jitter 2-10 --dry-run`.
 
 ## 3. Cómo funciona
 
@@ -55,8 +58,9 @@ En Windows, `iniciar_autopiloto.bat` hace lo mismo (comprueba el entorno, el `.e
   publicación real se programa para entonces. Es cosmético: evita publicar siempre en el mismo segundo, pero **no
   protege frente a las normas de Meta** (contenido original, spam, contenido repetitivo). Lo que protege es el ritmo
   bajo, el contenido propio y usar la API oficial.
-- **Sin duplicados.** `autopiloto_estado.json` anota lo publicado cada día: si reinicias el programa no repite, y
-  `MAX_POSTS_DIA` (2 por defecto) limita el total diario. Un candado (`autopiloto.lock`) impide dos autopilotos a la vez.
+- **Sin duplicados.** `estado_autopiloto.json` recuerda lo publicado cada día (ver la sección siguiente): si cierras el
+  programa o reinicias Windows no repite nada. `MAX_FOTOS_DIA` y `MAX_VIDEOS_DIA` limitan cada tipo por separado. Un candado
+  (`autopiloto.lock`) impide dos autopilotos a la vez.
 - **Errores.** Un fallo del render o de la API se anota en el log y el programa sigue vivo para la siguiente tarea. Los
   fallos temporales (límite de llamadas, errores 5xx de Meta antes de recibir nada) se reintentan hasta `REINTENTOS`
   veces cada `REINTENTO_MIN` minutos **sin volver a renderizar**. Si no se sabe si Meta recibió la publicación (se cortó
@@ -67,8 +71,44 @@ En Windows, `iniciar_autopiloto.bat` hace lo mismo (comprueba el entorno, el `.e
   `ffprobe` que cumple lo que pide Meta (9:16, mínimo 540×960, 24–60 fps, 3–90 s, AAC 48 kHz). Los Reels se envían con
   `is_ai_generated=true` (la voz es sintética) salvo que pongas `IA_ETIQUETA=0`.
 - **Fotos.** Se publican con `caption` (el copy) y, si la API lo acepta, `alt_text_custom` (el texto alternativo).
-- **Zona horaria y PC.** Las horas son las del PC. Si estuvo apagado o dormido más de `TOLERANCIA_HORAS`, esa tarea del
-  día se omite (no se publica de madrugada «para recuperar»).
+- **Zona horaria y PC.** Las horas son las del PC. Si una franja pasó mientras el PC estaba apagado o dormido, se recupera
+  al volver si han pasado menos de `TOLERANCIA_HORAS` (3 por defecto) y todavía queda cupo; si no, se omite (no se publica
+  de madrugada «para recuperar»).
+
+## 3b. Estado diario y reinicios
+
+Al arrancar, el autopiloto **lee `estado_autopiloto.json`**, muestra en la consola el resumen de hoy y **programa solo las
+franjas pendientes que caben en el límite diario** de cada tipo:
+
+```text
+Resumen de hoy (2026-11-23): fotos 1/1 | videos 0/1
+  Publicado:
+    11:41:08  foto   fracciones_3-4_1234567890.png  id 1234567890_9876543
+  Franja foto  11:30: ejecutada a las 11:41:08
+  Franja video 18:00: pendiente, prevista a las 18:09:42
+Pendiente por publicar hoy: 1 franja(s).
+```
+
+Qué guarda el archivo, por día (`YYYY-MM-DD`): cuántas `fotos` y `videos` se publicaron, la lista de `publicaciones` (tipo,
+franja, hora, archivo, id de Meta y si fue `ok` o `ambiguo`) y el estado de cada franja (`programada`, `en_curso`,
+`ejecutada`, `ambigua`, `error` u `omitida` con su motivo). Se conservan 45 días. Reglas:
+
+- **Escritura atómica.** Cada cambio se escribe en un temporal, se fuerza a disco y se sustituye el archivo de golpe
+  (`os.replace`), dejando antes una copia `estado_autopiloto.json.bak`. Un corte de luz a mitad de un guardado nunca deja el
+  archivo a medias. Si aun así se dañara, se aparta como `*.corrupto-FECHA` y se recupera la copia `.bak`.
+- **Anotación previa.** Justo antes de hablar con Meta, la franja queda como `en_curso` en disco. Si el programa muere en
+  ese momento, al volver esa franja pasa a **ambigua** (pudo publicarse) y **no se repite sola**: revisa tu página.
+- **Cupo por tipo.** Se programan, por orden de hora, las franjas pendientes mientras queden publicaciones en el límite de
+  su tipo (lo ya publicado, también a mano con `--ahora`, gasta cupo). Las que no caben o pasaron hace más de la tolerancia
+  se anotan como `omitida` con el motivo. Si subes un límite y reinicias, se vuelven a evaluar.
+- **Misma hora tras reiniciar.** La hora elegida (franja + retraso aleatorio) queda guardada: un reinicio antes de esa hora
+  la conserva en vez de sortear otra. Si ya pasó (el PC estaba apagado), se publica enseguida.
+- **Errores.** Una franja con error (render o rechazo de la API: no llegó a publicarse) se vuelve a intentar al reiniciar,
+  hasta 3 veces al día. Un archivo ya subido nunca se vuelve a publicar.
+- **Medianoche.** Al cambiar de día se vuelve a planificar con los contadores del día nuevo, sin reiniciar.
+- **Migración.** Si existe el `autopiloto_estado.json` de versiones anteriores, la primera vez se importa lo publicado hoy
+  (el archivo antiguo no se toca).
+- `--estado` solo lee: puedes ejecutarlo con el autopiloto en marcha.
 
 ## 4. Dejarlo en segundo plano (Windows)
 
@@ -92,7 +132,8 @@ En Windows, `iniciar_autopiloto.bat` hace lo mismo (comprueba el entorno, el `.e
 
 ## 6. Límites
 
-- Los Reels por API tienen un máximo de **30 cada 24 h** (el autopiloto publica 1 al día).
+- Los Reels por API tienen un máximo de **30 cada 24 h** (`MAX_VIDEOS_DIA` admite de 0 a 30; con 0 o sin horas, ese tipo
+  queda desactivado). Sube el ritmo con cuidado: Meta penaliza el spam y el contenido repetitivo.
 - No cambia la miniatura del Reel, no publica el comentario con la respuesta ni etiqueta las fotos como IA (se dibujan por
   código, no con IA generativa).
 - Seguridad: el token no se imprime ni se guarda en el log (se sustituye por `***`). Si crees que se filtró, revócalo desde
