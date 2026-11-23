@@ -17,7 +17,7 @@ from pathlib import Path
 from . import media
 from .envfile import Config, redact
 from .graph import GraphClient, GraphError
-from .state import CONSUMED, MAX_ATTEMPTS, PLURAL, State
+from .state import CONSUMED, MAX_ATTEMPTS, PLURAL, PUBLISHED, State, cover_note
 
 LOG = logging.getLogger("autopiloto")
 KINDS = {"foto": "imagen del feed", "video": "Reel"}
@@ -270,6 +270,23 @@ class Autopilot:
         jitter = self.rng.randint(self.cfg.jitter_min * 60, self.cfg.jitter_max * 60)
         return max(base, now) + timedelta(seconds=jitter), base < now
 
+    def _covered(self, day: date, kind: str) -> dict:
+        """{franja: publicacion}: las publicaciones que no salieron de una franja de hoy (a mano con --ahora, migradas o de
+        una franja que ya no esta en el .env) cubren la franja mas cercana: la ultima que empezo antes de publicarse o, si
+        fue antes de todas, la primera. Asi una foto o Reel manual no hace que se «recupere» la franja siguiente."""
+        st, times = self.state, self.cfg.times(kind)
+        free = [f for f in times if (st.slot(day, kind, f) or {}).get("estado") not in CONSUMED]
+        manual = [p for p in st.publications(day) if p.get("tipo") == kind and p.get("estado") in PUBLISHED
+                  and p.get("franja") not in times and not p.get("cubre")]
+        out = {}
+        for pub in sorted(manual, key=lambda x: x.get("hora") or ""):
+            before = [f for f in free if f + ":00" <= (pub.get("hora") or "")]
+            pick = before[-1] if before else (free[0] if free else None)
+            if pick:
+                out[pick] = pub
+                free.remove(pick)
+        return out
+
     def plan(self, day: date | None = None, persist: bool = True) -> tuple:
         """-> (pendientes, omitidas). Solo se planifican las franjas aun no ejecutadas y mientras quede cupo del dia:
         cada tipo tiene su propio limite y se reparte por orden de hora. Las que pasaron hace mas de la tolerancia o no
@@ -282,7 +299,12 @@ class Autopilot:
                 if not cfg.limit(kind):
                     continue                                         # tipo desactivado
                 remaining = cfg.limit(kind) - st.count(day, kind)    # lo ya publicado (tambien a mano) gasta cupo
+                covered = self._covered(day, kind)
                 for franja in cfg.times(kind):
+                    if franja in covered:                            # ya hay una publicacion que ocupa esta franja
+                        if persist:
+                            st.cover(day, kind, franja, covered[franja])
+                        continue
                     entry = st.slot(day, kind, franja) or {}
                     if entry.get("estado") in CONSUMED:
                         continue
@@ -313,7 +335,7 @@ class Autopilot:
             return "pendiente"
         s = e.get("estado")
         if s == "ejecutada":
-            return f"ejecutada a las {e.get('hora', '?')}"
+            return f"ejecutada a las {e.get('hora', '?')}" + (f" ({e['nota']})" if e.get("nota") else "")
         if s == "ambigua":
             return f"AMBIGUA a las {e.get('hora', '?')}: puede estar publicada, revisa tu página"
         if s == "en_curso":
@@ -345,8 +367,12 @@ class Autopilot:
             lines.append("  Todavía no se ha publicado nada hoy.")
         for kind in KINDS:
             if cfg.limit(kind):
+                covered = self._covered(day, kind)                   # (sin guardar: --estado es de solo lectura)
                 for franja in cfg.times(kind):
                     entry = st.slot(day, kind, franja)
+                    if not entry and franja in covered:
+                        pub = covered[franja]
+                        entry = {"estado": "ejecutada", "hora": pub.get("hora", "?"), "nota": cover_note(pub)}
                     text = (preview or {}).get((kind, franja)) if (entry or {}).get("estado") not in CONSUMED else None
                     lines.append(f"  Franja {kind:<5} {franja}: {text or self._slot_text(entry)}")
         return lines

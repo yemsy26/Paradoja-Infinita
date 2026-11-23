@@ -101,6 +101,11 @@ franja, hora, archivo, id de Meta y si fue `ok` o `ambiguo`) y el estado de cada
 - **Cupo por tipo.** Se programan, por orden de hora, las franjas pendientes mientras queden publicaciones en el límite de
   su tipo (lo ya publicado, también a mano con `--ahora`, gasta cupo). Las que no caben o pasaron hace más de la tolerancia
   se anotan como `omitida` con el motivo. Si subes un límite y reinicias, se vuelven a evaluar.
+- **Lo publicado a mano también cuenta.** Una publicación que no salió de una franja de hoy (con `--ahora`, migrada del
+  formato antiguo o de una franja que ya no está en el `.env`) **cubre la franja más cercana**: la última que había
+  empezado antes de publicarse o, si fue antes de todas, la primera. Así, si ya subiste un Reel a las 13:53 y tienes las
+  franjas 12:30 y 19:30, la de las 12:30 queda como «cubierta por una publicación manual» en vez de «recuperarse» a
+  los pocos minutos, y la de las 19:30 sigue en pie.
 - **Misma hora tras reiniciar.** La hora elegida (franja + retraso aleatorio) queda guardada: un reinicio antes de esa hora
   la conserva en vez de sortear otra. Si ya pasó (el PC estaba apagado), se publica enseguida.
 - **Errores.** Una franja con error (render o rechazo de la API: no llegó a publicarse) se vuelve a intentar al reiniciar,

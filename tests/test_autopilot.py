@@ -551,9 +551,57 @@ def test_manual_publication_counts_toward_the_day_and_survives_a_restart(tmp_pat
     new = reopen(auto)
     planned, omitted = new.plan()
     assert [(p.kind, p.slot) for p in planned] == [("video", "18:00")]       # la foto de las 11:30 ya no hace falta
-    assert omitted[0][:2] == ("foto", "11:30")
+    assert omitted == []                                                     # no «se omite»: la cubre la publicacion manual
+    cover = new.state.slot(DAY, "foto", "11:30")
+    assert cover["estado"] == "ejecutada" and "manual" in cover["nota"] and cover["archivo"] == "foto_prueba_1.png"
     new.start_day()
     assert len(new.sched.jobs) == 1 and len(http.calls) == 1
+
+
+def test_earlier_publications_cover_their_slot_instead_of_recovering_it(tmp_path):
+    """Caso real: horarios 09:30,16:00 y 12:30,19:30 (2 de cada) y, a las 14:25, ya habian salido una foto (13:42) y un Reel
+    (13:53) de antes de configurar las franjas. El Reel de las 12:30 NO debe «recuperarse» ahora: cubre esa franja."""
+    legacy = tmp_path / "autopiloto_estado.json"
+    legacy.write_text(json.dumps({"dias": {"2026-11-23": {
+        "foto": {"estado": "ok", "hora": "13:42:58", "archivo": "f.png", "id": "10_20"},
+        "video": {"estado": "ok", "hora": "13:53:53", "archivo": "v.mp4", "id": "777"}}}}), "utf-8")
+    auto, http, gen = build(tmp_path, photo_times=("09:30", "16:00"), max_photos=2, video_times=("12:30", "19:30"), max_videos=2)
+    auto.state = State(auto.cfg.state_file, legacy=legacy, clock=auto.now)
+    auto.when[0] = datetime(2026, 11, 23, 14, 25)
+    planned, omitted = auto.plan()
+    assert sorted((p.kind, p.slot) for p in planned) == [("foto", "16:00"), ("video", "19:30")]
+    assert not [p for p in planned if p.catchup] and omitted == []             # nada de recuperar a las 12:30
+    assert min(p.when for p in planned) > auto.now()
+    day = on_disk(auto)
+    assert day["franjas"]["foto@09:30"]["estado"] == "ejecutada" and "anterior" in day["franjas"]["video@12:30"]["nota"]
+    assert sorted(p["cubre"] for p in day["publicaciones"]) == ["09:30", "12:30"]
+    text = chr(10).join(auto.status_lines())
+    assert "Franja video 12:30: ejecutada a las 13:53:53 (cubierta por una publicación anterior)" in text
+    for _ in range(3):                                                        # reiniciar no hace que cubra mas franjas
+        again = reopen(auto)
+        assert sorted((p.kind, p.slot) for p in again.plan()[0]) == [("foto", "16:00"), ("video", "19:30")]
+    assert sorted(p["cubre"] for p in on_disk(auto)["publicaciones"]) == ["09:30", "12:30"] and not http.calls
+
+
+def test_a_publication_before_every_slot_covers_the_first_one(tmp_path):
+    auto, _, _ = build(tmp_path, photo_times=("09:30", "16:00"), max_photos=2, video_times=())
+    auto.when[0] = datetime(2026, 11, 23, 8, 0)
+    assert auto.run_now("foto").status == "ok"                                # --ahora foto a las 08:00
+    auto.when[0] = datetime(2026, 11, 23, 8, 30)
+    planned, omitted = reopen(auto).plan()
+    assert [p.slot for p in planned] == ["16:00"] and omitted == []           # la de las 09:30 queda cubierta
+    auto.when[0] = datetime(2026, 11, 23, 8, 45)
+    assert reopen(auto).state.slot(DAY, "foto", "09:30")["estado"] == "ejecutada"
+
+
+def test_estado_shows_covered_slots_without_writing_anything(tmp_path):
+    auto, _, _ = build(tmp_path)
+    auto.run_now("foto")                                                      # una foto a mano a las 11:40
+    before = auto.cfg.state_file.read_bytes()
+    viewer = core.Autopilot(auto.cfg, None, State(auto.cfg.state_file, readonly=True, clock=auto.now), now=auto.now)
+    assert any("Franja foto  11:30: ejecutada a las 11:40:00 (cubierta por una publicación manual)" in x
+               for x in viewer.status_lines())
+    assert auto.cfg.state_file.read_bytes() == before
 
 
 def test_real_schedule_runs_the_jittered_job_once(tmp_path):

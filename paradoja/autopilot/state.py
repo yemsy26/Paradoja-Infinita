@@ -69,6 +69,10 @@ def _new_day() -> dict:
     return {"fotos": 0, "videos": 0, "publicaciones": [], "franjas": {}}
 
 
+def cover_note(pub: dict) -> str:
+    return "cubierta por una publicación anterior" if pub.get("franja") == "migrado" else "cubierta por una publicación manual"
+
+
 def slot_key(kind: str, franja: str) -> str:
     return f"{kind}@{franja}"
 
@@ -277,6 +281,14 @@ class State:
         with self.batch():
             self._day(day)["publicaciones"].append(pub)
             self._set_slot(day, kind, franja, slot)
+            self._dirty = True
+
+    def cover(self, day, kind: str, franja: str, pub: dict) -> None:
+        """Una publicacion sin franja (manual o migrada) cubre esa franja: no se vuelve a lanzar. `pub` es la de `publications()`."""
+        pub["cubre"] = franja
+        with self.batch():
+            self._set_slot(day, kind, franja, {"estado": "ejecutada", "hora": pub.get("hora", ""),
+                                               "archivo": pub.get("archivo", ""), "id": pub.get("id"), "nota": cover_note(pub)})
             self._dirty = True
 
     def release(self, day, kind: str, franja: str) -> None:

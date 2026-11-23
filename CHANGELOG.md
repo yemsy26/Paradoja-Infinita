@@ -3,6 +3,14 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.7.1] - 2026-11-23
+
+### Corregido
+- Una publicación hecha a mano (`--ahora`), migrada del estado antiguo o de una franja que ya no está en el `.env` ahora
+  **cubre la franja más cercana** en vez de gastar el cupo del día en la siguiente: con las franjas de vídeo 12:30 y 19:30 y
+  un Reel ya subido a las 13:53, el autopiloto «recuperaba» el de las 12:30 al arrancar y se saltaba el de las 19:30.
+  `--estado` y el resumen de arranque muestran esas franjas como «cubierta por una publicación manual/anterior».
+
 ## [1.7.0] - 2026-11-23
 
 Autopiloto: estado diario persistente, varios horarios y límites independientes.
