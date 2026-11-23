@@ -2,3 +2,5 @@ moderngl>=5.10
 numpy>=1.26
 edge-tts>=7.0
 pillow>=10.1
+requests>=2.31
+schedule>=1.2

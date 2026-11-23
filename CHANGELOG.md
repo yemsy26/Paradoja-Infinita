@@ -3,6 +3,28 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.6.0] - 2026-11-23
+
+Autopiloto: genera y publica solo en la página de Facebook.
+
+### Añadido
+- **`autopiloto.py`** (y `iniciar_autopiloto.bat`): orquestador con la librería `schedule`. Genera una imagen (11:30) con
+  `generador_imagenes.py --modo aleatorio` y un Reel (18:00) con `main.py --mode random`, con un retraso aleatorio de 1 a 15
+  minutos sobre cada hora. Opciones `--check`, `--dry-run`, `--ahora foto|video`, `--foto`, `--video` y `--jitter`.
+- **Publicación por la Graph API** (v26.0, configurable): fotos por `/{page_id}/photos` (con `caption` y texto alternativo) y Reels
+  por `/{page_id}/video_reels` (inicio, subida a `rupload.facebook.com` con reanudación por `offset`, finalización y espera del
+  procesado), con `is_ai_generated=true`. Lee el texto del `_publicar.txt` más reciente.
+- Credenciales en `.env` (`PAGE_ID`, `PAGE_ACCESS_TOKEN`; modelo en `.env.example`, fuera de Git). El token se enmascara en la
+  configuración y se borra de los mensajes y del `autopiloto.log`.
+- Robustez: `autopiloto.log` con rotación; un fallo del render o de la API no detiene el programa; reintentos solo de publicación
+  y solo si es seguro (los resultados ambiguos no se repiten); estado por día para no duplicar al reiniciar y límite
+  `MAX_POSTS_DIA`; bloqueo contra dos instancias; comprobación previa de los requisitos de Meta con `ffprobe`; las tareas
+  atrasadas por un PC apagado no se publican a destiempo.
+- Pruebas `tests/test_autopilot.py` con la API y los generadores simulados. Guía en `docs/AUTOPILOTO.md`.
+
+### Cambiado
+- Nuevas dependencias: `requests` y `schedule` (`requirements.txt` y CI).
+
 ## [1.5.0] - 2026-11-23
 
 Imágenes estáticas para el feed de Facebook.

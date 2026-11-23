@@ -114,6 +114,20 @@ usa GPU ni FFmpeg) y solo comparte `spin.py`, `copy_es.BRAND_TAG` y `acts._gen_s
   necesarios; sin ninguna usa la de Pillow. Para añadir un modo: generador en `puzzles.py` (+ `GENERATORS`), función
   `draw_*` en `render.py` (+ `DRAWERS`), plantillas en `copy_feed.py` y una opción en el menú.
 
+## Autopiloto
+
+`autopiloto.py` → `autopilot/core.py` (`Autopilot`: `trigger` elige el retraso y programa, `execute` genera, `publish` envía) →
+`media.py` (ejecuta los generadores con `subprocess`, localiza el `_publicar.txt` más reciente y comprueba requisitos con
+`ffprobe`) → `graph.py` (`GraphClient`: `post_photo`, `post_reel`, `check`). Todo se inyecta (HTTP, `subprocess`, reloj, `sleep`,
+planificador) para probarlo sin red ni GPU (`tests/test_autopilot.py`).
+
+- Errores: `GraphError` distingue `retry` (límite de llamadas, 5xx antes de recibir nada) de `ambiguous` (la publicación pudo
+  llegar a Meta: no se reintenta, se anota «ambiguo» y cuenta como publicada). Un fallo de generación no se confunde con uno
+  de publicación, y los reintentos de publicación no vuelven a renderizar.
+- El token solo vive en `Config` (que lo enmascara) y en las llamadas; `redact()` lo borra de mensajes y del log.
+- Estado y bloqueo: `autopiloto_estado.json` (por día y tarea) y `autopiloto.lock` (`msvcrt`/`fcntl`, se libera si el proceso muere).
+- Para otro destino (p. ej. Instagram) basta con un cliente nuevo con los mismos métodos y pasarlo a `Autopilot`.
+
 ## Elección inteligente
 
 `catalog.choose` genera 24 semillas candidatas, construye cada escena (barato: no renderiza) y puntúa su novedad frente a

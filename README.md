@@ -45,6 +45,8 @@ guion narrado y audio, de modo que cada video es estructuralmente distinto y a l
   interactivo o CLI para automatizar.
 - **Pensado para retención y alcance**: el primer fotograma ya lleva el reto y un gancho en pantalla, el texto respeta
   la zona segura de Reels y cada video exporta una **portada** (`*_portada.jpg`) para usarla como miniatura.
+- **Autopiloto** (`autopiloto.py`): se queda en marcha y publica solo en tu página (imagen por la mañana, Reel por la tarde)
+  con la Graph API de Meta, retraso aleatorio, registro de errores y sin duplicados (ver [docs/AUTOPILOTO.md](docs/AUTOPILOTO.md)).
 - **Imágenes estáticas para el feed** (`generador_imagenes.py`): 4 retos virales de 1080×1350 dibujados con Pillow
   (sin IA generativa), cada uno con su copy para pegar y la respuesta oculta de control.
 - **Texto único por video (text spinning)**: gancho de apertura, llamada a seguir del cierre, debate en acertijos y
@@ -297,6 +299,26 @@ opción 6). Sin ellas usa Arial Black / Segoe UI Black / Impact del sistema. Sol
 > cambio de algo. Meta trata «comenta SÍ/NO», «etiqueta a 3 amigos» o «comparte para ganar» como cebo de interacción y
 > reduce el alcance. Frases como «el 90 % falla» son ganchos retóricos, no estadísticas medidas.
 
+## Autopiloto: publicar solo
+
+`autopiloto.py` genera y **publica en tu página de Facebook** con la Graph API oficial: una imagen (`generador_imagenes.py
+--modo aleatorio`) hacia las 11:30 y un Reel (`main.py --mode random`) hacia las 18:00, cada una con un retraso aleatorio de
+1 a 15 minutos. Lee `PAGE_ID` y `PAGE_ACCESS_TOKEN` de un archivo `.env` (copia `.env.example`; **nunca** lo subas a Git).
+
+```powershell
+python autopiloto.py --check               # comprueba el token y la página, sin publicar
+python autopiloto.py --dry-run --ahora foto  # ensayo: genera pero no publica
+python autopiloto.py                       # modo autopiloto (o iniciar_autopiloto.bat en Windows)
+```
+
+Los errores del render o de la API se anotan en `autopiloto.log` y el programa sigue vivo; lo publicado cada día queda en
+`autopiloto_estado.json` (sin duplicados al reiniciar, máximo `MAX_POSTS_DIA`). Los Reels siguen la guía oficial (inicio,
+subida con reanudación y finalización) y se marcan como contenido con IA. Guía de credenciales, ajustes y errores frecuentes
+en [docs/AUTOPILOTO.md](docs/AUTOPILOTO.md).
+
+> El retraso aleatorio solo evita publicar siempre en el mismo segundo: no protege frente a las normas de Meta sobre contenido
+> original, spam o contenido repetitivo. Publica a un ritmo razonable y revisa tu página con frecuencia.
+
 ## Qué cambia con la semilla
 
 | Elemento | Variación |
@@ -345,6 +367,9 @@ La integración continua las ejecuta en cada *push* y *pull request*. Consulta [
 main.py                  Menú interactivo / CLI de videos
 iniciar.bat              Lanzador con instalación automática (Windows)
 generador_imagenes.py    Menú interactivo / CLI de imágenes para el feed
+autopiloto.py            Orquestador: genera y publica solo (Graph API) a sus horas
+iniciar_autopiloto.bat   Lanzador del autopiloto (Windows)
+.env.example             Modelo del .env (PAGE_ID y PAGE_ACCESS_TOKEN)
 iniciar_imagenes.bat     Lanzador de las imágenes (Windows)
 fonts/                   Fuentes .ttf/.otf opcionales (Montserrat, Comic Neue...)
 paradoja/
@@ -364,6 +389,7 @@ paradoja/
   encoder.py             FFmpeg: pipe crudo + mezcla + subtítulos → NVENC
   metadata.py            Nombres de archivo y borrador de publicación (.txt)
   clipboard.py           Copia el texto de publicación al portapapeles (Windows)
+  autopilot/             Autopiloto: graph.py (Reels y fotos), core.py (horarios, estado, errores), media.py, envfile.py
   feed/                  Imágenes del feed: puzzles.py (retos), render.py + canvas.py (Pillow),
                          copy_feed.py (texto), fonts.py, history.py, studio.py
 content/acertijos.json   Acertijos editables

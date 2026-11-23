@@ -24,6 +24,8 @@ audio, so each video is structurally different yet fully **reproducible**.
 - **Procedural audio** (drone + effects) synthesized with NumPy: no copyrighted music.
 - **17 challenge types + mixed video + perfect loop**, with a smart picker that avoids repeating challenges, an
   interactive menu and a scriptable CLI.
+- **Autopilot** (`autopiloto.py`): keeps running and publishes by itself to your Page (an image in the morning, a Reel in the
+  afternoon) through Meta's Graph API, with random jitter, an error log and no duplicates (see `docs/AUTOPILOTO.md`).
 - **Static feed images** (`generador_imagenes.py`): 4 viral 1080x1350 challenges drawn with Pillow (no generative AI),
   each with a paste-ready copy and the hidden correct answer for your own control.
 - **Unique text per video (text spinning):** the opening hook, the closing follow call-to-action, the debate lines
@@ -88,6 +90,16 @@ solution later and the alt text. Challenge and copy come from the seed and are l
 so nothing repeats. Put your `.ttf` fonts (Montserrat, Poppins, Comic Neue, Anton...) in `fonts/` and pick one with
 `--estilo` or `--fuente`. The copy asks a question and asks to follow the page; avoid "comment YES/NO", "tag 3 friends" or
 "share to win" (Meta treats them as engagement bait).
+
+## Autopilot
+
+`autopiloto.py` generates and **publishes to your Facebook Page** through the official Graph API: an image around 11:30 and a
+Reel around 18:00, each delayed by a random 1-15 minutes. It reads `PAGE_ID` and `PAGE_ACCESS_TOKEN` from a `.env` file (copy
+`.env.example`; never commit it). Use `--check` to test the token, `--dry-run --ahora foto` to rehearse without publishing and
+no arguments to run the daily schedule. Render or API failures go to `autopiloto.log` and the program keeps running; what was
+published each day is kept in `autopiloto_estado.json` so nothing is duplicated. Reels follow the official three-phase
+flow (start, resumable upload, finish) and are flagged as AI content. Setup and troubleshooting: `docs/AUTOPILOTO.md`
+(Spanish). The random delay is cosmetic: it does not protect against Meta's originality and spam policies.
 
 ## Unique text (text spinning)
 

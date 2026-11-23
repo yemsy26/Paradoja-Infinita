@@ -20,3 +20,9 @@ Thumbs.db
 output_imagenes/
 fonts/*.ttf
 fonts/*.otf
+
+# Autopiloto: credenciales, registro y estado (NUNCA se suben)
+.env
+autopiloto.log*
+autopiloto_estado.json
+autopiloto.lock

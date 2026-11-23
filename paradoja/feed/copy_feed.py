@@ -35,7 +35,7 @@ HOOKS = {
     "opciones": (
         "📝 {Solo una opción es correcta|Una sola es la buena}... {y las otras están hechas para confundirte|¿cuál será?}",
         "🤨 {Piensa antes de elegir|No te precipites}: {hay trampa|las opciones se parecen mucho}.",
-        "🎯 {A, B, C o D|¿Cuál eliges?} {Casi nadie acierta a la primera|Cuidado con la trampa|Fíjate bien en los detalles}.",
+        "🎯 {A, B, C o D: ¿cuál es la correcta?|¿Cuál eliges?} {Casi nadie acierta a la primera.|Cuidado con la trampa.|Fíjate bien en los detalles.}",
         "🧠 {Un reto de lógica|Una pregunta con truco}: {¿te atreves?|¿cuál es la correcta?}",
     ),
 }
