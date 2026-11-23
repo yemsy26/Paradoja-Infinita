@@ -1,5 +1,6 @@
 """Subtitulos ASS: grandes, al centro, palabra activa resaltada + HUD, texto de los retos y llamada a comentar."""
 import re
+import textwrap
 from pathlib import Path
 
 from .config import BRAND, CAPTION_Y, HUD_Y, VideoSpec
@@ -25,6 +26,7 @@ Style: Cta,Arial Black,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,10
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+HOOK_Y = CAPTION_Y - 45          # centro de la ficha del gancho: algo mas arriba para no tocar la tarjeta del reto
 _WHITE = r"{\c&HFFFFFF&}"
 _POP = r"{\fscx78\fscy78\t(0,90,\fscx100\fscy100)}"
 
@@ -73,14 +75,35 @@ def _chunks(tokens, max_words=3, max_chars=13):
     return out
 
 
-def _outro(start: float, end: float, cx: int, hl: str, question: str) -> list:
-    """Cierre: nota (comentarios), compartir (envios privados) y seguir; aparecen escalonados."""
+def _chip_color(bgr: str) -> str:
+    """Ficha de color de acento con texto de alto contraste (oscuro sobre fondos claros)."""
+    return r"\3c&H" + bgr + r"&\3a&H18&\c&H" + ("000000" if _luma(bgr) > 0.55 else "FFFFFF") + "&"
+
+
+def _wrap_big(text: str, width: int = 24, max_size: int = 72, max_height: int = 230) -> tuple:
+    """(texto en mayusculas con saltos ASS, tamaño): prueba varios anchos de linea y se queda con la letra mas grande
+    que quepa en ~940 px de ancho y en `max_height` px de alto (asi una frase larga no invade otras filas)."""
+    text, best = text.upper(), None
+    for w in range(max(12, width - 8), width + 9):
+        lines = textwrap.wrap(text, w)
+        size = int(min(max_size, 940 / (0.66 * max(len(x) for x in lines))))
+        fits = len(lines) * size * 1.2 <= max_height
+        key = (fits, size if fits else -len(lines) * size)
+        if best is None or key > best[0]:
+            best = (key, lines, size)
+    return r"\N".join(best[1]), best[2]
+
+
+def _outro(start: float, end: float, cx: int, hl: str, question: str, cta: str,
+           note: str = "COMENTA TU NOTA", share: str = "ENVÍASELO A QUIEN NO LO ACIERTE") -> list:
+    """Cierre: la llamada a seguir (la misma frase que se narra) en una ficha grande, nota y compartir escalonados."""
     accent = r"\c&H" + hl + "&"
-    rows = ((0.0, "Title", "", BRAND, 340),
-            (0.0, "Cta", r"\fs54", question, 520),
-            (0.35, "Cta", r"\fs72" + accent, "COMENTA TU NOTA", 650),
-            (1.0, "Cta", r"\fs40", "ENVÍASELO A QUIEN NO LO ACIERTE", 770),
-            (1.6, "Cta", r"\fs40" + accent, "SÍGUENOS · RETO NUEVO CADA DÍA", 840))
+    cta_text, cta_size = _wrap_big(cta, 22, 76, 290)
+    rows = ((0.0, "Title", "", BRAND, 330),
+            (0.0, "Cap", r"\fs" + str(cta_size) + _chip_color(hl), cta_text, 560),
+            (0.5, "Cta", r"\fs54", question, 770),
+            (0.9, "Cta", r"\fs64" + accent, note, 850),
+            (1.5, "Cta", r"\fs40", share, 1110))
     return [_line(min(start + dt, end - 0.3), end, style, "{" + over + r"\fad(150,0)}" + text, (cx, y))
             for dt, style, over, text, y in rows]
 
@@ -105,11 +128,16 @@ def build_ass(path: Path, clips: list, tl: Timeline, spec: VideoSpec) -> Path:
                 ev.append(_line(clip.start + ws, clip.start + end, "Sub", (_POP if wi == 0 else "") + text))
 
     cx = spec.width // 2
+    if sc.hook:                                  # gancho: frase completa en una ficha mientras suena (el reto ya esta visible)
+        text, size = _wrap_big(sc.hook)
+        ev.append(_line(0.0, sc.lead if sc.lead > 0 else 3.4, "Cap",
+                        "{" + r"\fs" + str(size) + _chip_color(hl) + r"\fad(0,150)}" + text, (cx, HOOK_Y)))
     if tl.is_loop:
-        ev += _outro(spec.duration - 3.3, spec.duration - 0.1, cx, hl, r"¿CUÁNTAS VECES\NLO REPETISTE?")
+        ev += _outro(spec.duration - sc.outro_len + 0.2, spec.duration - 0.1, cx, hl,
+                     "¿CUÁNTAS VECES LO REPETISTE?", sc.cta, "COMENTA EL NÚMERO", "ENVÍASELO A QUIEN NO PARE DE MIRAR")
     else:
         n = len(sc.acts)
-        ev += _outro(tl.outro_start + 0.2, spec.duration - 0.1, cx, hl, f"¿CUÁNTOS DE {n} ACERTASTE?")
+        ev += _outro(tl.outro_start + 0.2, spec.duration - 0.1, cx, hl, f"¿CUÁNTOS DE {n} ACERTASTE?", sc.cta)
         for a in sc.acts:
             info = TYPES[a.type]
             label = f"{info.hud} {a.index + 1}/{n}" + (" · FINAL" if a.index == n - 1 and n > 1 else "")
@@ -121,12 +149,15 @@ def build_ass(path: Path, clips: list, tl: Timeline, spec: VideoSpec) -> Path:
                                     r"{\an9\fs96\c&H" + hl + r"&\fscx70\fscy70\t(0,120,\fscx100\fscy100)}" + str(k),
                                     (spec.width - 50, HUD_Y - 12)))
             for t0, t1, text, size, bgr, y in a.items:           # texto del reto (calculo, secuencia, palabras...)
-                if bgr and y <= CAPTION_Y:       # gancho / respuesta: ficha de color de acento con texto de alto contraste
-                    color = r"\3c&H" + bgr + r"&\3a&H18&\c&H" + ("000000" if _luma(bgr) > 0.55 else "FFFFFF") + "&"
+                if bgr and y <= CAPTION_Y:       # respuesta / debate: ficha de color de acento con texto de alto contraste
+                    color = _chip_color(bgr)
                 else:
                     color = r"\c&H" + bgr + "&" if bgr else ""
-                fade = r"\fad(120,0)" if t0 > 0.05 else r"\fad(0,150)"    # el primer fotograma ya lleva texto
-                ev.append(_line(a.start + t0, a.start + t1, "Cap" if y <= CAPTION_Y else "Big",
+                # el enunciado del primer reto (texto central) ya se lee mientras suena el gancho; la pregunta fija y el
+                # gancho comparten fila, asi que esa espera a que acabe la apertura
+                pulled = a.index == 0 and y > CAPTION_Y and t0 <= 0.5
+                fade = r"\fad(120,0)" if t0 > 0.05 and not pulled else r"\fad(0,150)"
+                ev.append(_line(0.0 if pulled else a.start + t0, a.start + t1, "Cap" if y <= CAPTION_Y else "Big",
                                 "{\\fs" + str(size) + color + fade + "}" + text, (cx, y)))
 
     path.write_text(_HEADER.format(w=spec.width, h=spec.height, hl=hl) + "\n".join(ev) + "\n", encoding="utf-8")

@@ -1,8 +1,10 @@
 """Nombre de archivo descriptivo + borrador de publicacion (.txt) para cada video."""
+import hashlib
 import random
 import unicodedata
 from pathlib import Path
 
+from . import copy_es
 from . import texts_es as T
 from .scene import SHAPES, TYPES, Scene
 from .timeline import Timeline
@@ -22,27 +24,6 @@ MODE_SLUG = {
     "sync": "sincronia", "swarm": "enjambre", "count": "conteo", "flicker": "cambio", "memory": "memoria",
     "stroop": "stroop", "math": "calculo", "sequence": "secuencia", "riddle": "acertijo", "loop": "bucle", "mix": "mixto",
     "cups": "vasos", "simon": "simon", "digits": "numerodistinto",
-}
-TAGS = {
-    "anomaly": ["#RetoVisual", "#EncuentraLaDiferencia", "#TestVisual"],
-    "illusion": ["#IlusionOptica", "#IlusionesOpticas", "#TuCerebroTeEngana"],
-    "ishihara": ["#TestDeVision", "#Ishihara", "#PruebaVisual", "#RetoVisual"],
-    "magiceye": ["#OjoMagico", "#Autoestereograma", "#Imagen3D", "#RetoVisual"],
-    "contrast": ["#IlusionOptica", "#ContrasteSimultaneo", "#TuCerebroTeEngana"],
-    "sync": ["#RetoDeReflejos", "#PausaElVideo", "#RetoVisual"],
-    "swarm": ["#RetoDeAtencion", "#SigueElPunto", "#RetoVisual"],
-    "count": ["#CuentaLasFiguras", "#RetoDeAtencion", "#RetoVisual"],
-    "flicker": ["#QueCambio", "#RetoDeAtencion", "#RetoVisual"],
-    "memory": ["#TestDeMemoria", "#Memoria", "#RetoMental"],
-    "stroop": ["#EfectoStroop", "#RetoMental", "#TuCerebro"],
-    "math": ["#RetoMatematico", "#Matematicas", "#RetoMental"],
-    "sequence": ["#QueNumeroSigue", "#RetoDeLogica", "#Matematicas"],
-    "riddle": ["#Acertijos", "#Adivinanzas", "#RetoMental"],
-    "loop": ["#BucleInfinito", "#PerfectLoop", "#Hipnotico", "#Satisfying"],
-    "mix": ["#RetoMental", "#TestDeCerebro", "#RetoVisual"],
-    "cups": ["#JuegoDeLosVasos", "#SigueLaBola", "#RetoDeAtencion", "#RetoVisual"],
-    "simon": ["#Simon", "#TestDeMemoria", "#RetoMental", "#Memoria"],
-    "digits": ["#EncuentraElNumero", "#TestVisual", "#RetoVisual", "#EncuentraLaDiferencia"],
 }
 
 
@@ -455,11 +436,6 @@ SEO = {
     "mix": ("Mini-retos de atención, memoria y lógica en un solo video.",
             "Test de cerebro con retos variados y la respuesta al final."),
 }
-SHARE_LINES = ("📤 Mándaselo a quien crea que no lo acierta.", "📤 Reta a un amigo: envíale este video.",
-               "📤 Compártelo con alguien a quien le encanten los retos.", "📤 ¿Conoces a alguien que lo resolvería? Envíaselo.",
-               "📤 Guárdalo y reta a alguien de tu familia.", "📤 Mándaselo a tu amigo más listo y mira si lo logra.")
-FOLLOW_LINES = ("➕ Sígueme: un reto nuevo cada día.", "➕ Si te gustó, sígueme: hay más retos todos los días.",
-                "➕ Sígueme para el reto de mañana.", "➕ Nuevo reto cada día: sígueme para no perdértelo.")
 # (infinitivo para «¿Puedes ...?», plural para «5 ...»)
 ACTION = {
     "anomaly": ("encontrar la figura distinta", "retos visuales"), "illusion": ("no caer en estas ilusiones", "ilusiones ópticas"),
@@ -489,29 +465,57 @@ def _generic_titles(sc) -> list:
             f"{n} {plural} para poner a prueba tu cerebro"]
 
 
-def build_post(sc: Scene, tl: Timeline, avoid=()) -> dict:
-    """Todo el texto de publicacion de un video. Determinista por semilla; `avoid` = titulos usados hace poco."""
-    rng = random.Random(sc.seed ^ 0xCAFE)
+MAX_REROLL = 64        # intentos de recomponer el texto hasta que no coincida con una publicacion reciente
+
+
+def post_hash(paste: str) -> str:
+    """Huella corta del texto a pegar: sirve para no repetir nunca la misma publicacion."""
+    return hashlib.sha1(paste.encode("utf-8")).hexdigest()[:12]
+
+
+def _compose(sc: Scene, tl: Timeline, rng: random.Random, avoid) -> dict:
+    """Una version del texto de publicacion, armada con fragmentos elegidos con `rng` (ver copy_es.py)."""
     pick = _Pick(rng, avoid)
     titles, descs, extra = _BUILDERS[sc.mode](sc, tl)
-    title = pick.title(list(titles) + ([] if sc.mode == "riddle" else _generic_titles(sc)))
+    n, loop = len(sc.acts), sc.mode == "loop"
+    act, plural = ACTION.get(sc.mode, ("", ""))
+    own_title = loop or sc.mode == "riddle" or rng.random() < 0.5        # el acertijo siempre lleva el primer acertijo
+    title = pick.title(list(titles) + ([] if sc.mode == "riddle" else _generic_titles(sc))) if own_title \
+        else copy_es.make_title(rng, act, plural, n)
     head, _, rest = pick.choice(descs).partition("\n\n")
-    desc = head + "\n" + pick.choice(SEO[sc.mode]) + (("\n\n" + rest) if rest else "")
-    footer = pick.choice(SHARE_LINES) + "\n" + pick.choice(FOLLOW_LINES)
-    specific = TAGS[sc.mode]
-    if sc.mode == "mix":
-        specific = specific + [t for ty in dict.fromkeys(a.type for a in sc.acts) for t in TAGS[ty][:1]]
-    tags = list(dict.fromkeys(specific))[:4] + ["#ParadojaInfinita"]
-    n = len(sc.acts)
-    pinned = ("¿Cuántas veces lo repetiste? Responde solo con un número 👇" if sc.mode == "loop"
-              else f"¿Cuántos de los {n} retos acertaste? Responde solo con un número (0 a {n}) 👇")
+    if not loop and sc.mode != "riddle" and rng.random() < 0.5:
+        head = copy_es.make_desc_open(rng, act, plural, n)
+    if sc.mode not in ("riddle", "ishihara") and rng.random() < 0.5:     # ishihara conserva su aviso de «solo un juego»
+        rest = copy_es.make_ask(rng, n, loop)
+    seo = pick.choice(SEO[sc.mode])
+    if not loop and rng.random() < 0.5:
+        seo += " " + copy_es.make_seo_tail(rng)
+    desc = head + "\n" + seo + (("\n\n" + rest) if rest else "")
+    footer = copy_es.make_share(rng) + "\n" + copy_es.make_follow(rng)
+    tags = copy_es.make_tags(rng, sc.mode, [a.type for a in sc.acts])
+    pinned = copy_es.make_pinned(rng, n, loop)
     paste = f"{title}\n\n{desc}\n\n{footer}\n\n{' '.join(tags)}"      # exactamente lo que se pega en la publicacion
     return dict(title=title, desc=desc, footer=footer, tags=tags, pinned=pinned, paste=paste, extra=extra)
 
 
-def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=()) -> tuple:
-    """Escribe el .txt de publicacion (y `<nombre>_publicar.txt`, solo con el texto a pegar). Devuelve (ruta, titulo)."""
-    post = build_post(sc, tl, avoid)
+def build_post(sc: Scene, tl: Timeline, avoid=(), avoid_posts=()) -> dict:
+    """Todo el texto de publicacion de un video. Determinista por semilla y por historial: `avoid` = titulos usados hace
+    poco y `avoid_posts` = huellas de publicaciones recientes; se recompone (otra sal) hasta que el texto sea nuevo."""
+    avoid_posts = set(avoid_posts)
+    post = {}
+    for salt in range(MAX_REROLL):
+        rng = random.Random(sc.seed ^ 0xCAFE ^ (salt * 0x9E3779B1))
+        post = _compose(sc, tl, rng, avoid)
+        post["salt"], post["hash"] = salt, post_hash(post["paste"])
+        if post["hash"] not in avoid_posts and (post["title"] not in avoid or salt >= MAX_REROLL // 2):
+            break
+    return post
+
+
+def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=(), avoid_posts=()) -> tuple:
+    """Escribe el .txt de publicacion (y `<nombre>_publicar.txt`, solo con el texto a pegar).
+    Devuelve (ruta, titulo, huella del texto)."""
+    post = build_post(sc, tl, avoid, avoid_posts)
     variables = [f"Semilla: {sc.seed}", f"Paleta: {sc.palette.name.capitalize()}"]
     if sc.mode != "loop":
         variables.append(f"Estructura: {len(sc.acts)} retos de {', '.join(sorted({TYPES[a.type].menu for a in sc.acts}))}")
@@ -535,4 +539,4 @@ def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=(
     )
     path.write_text(text, encoding="utf-8-sig")
     path.with_name(f"{path.stem}_publicar.txt").write_text(post["paste"] + "\n", encoding="utf-8-sig")
-    return path, post["title"]
+    return path, post["title"], post["hash"]

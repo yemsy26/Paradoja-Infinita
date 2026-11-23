@@ -24,6 +24,11 @@ audio, so each video is structurally different yet fully **reproducible**.
 - **Procedural audio** (drone + effects) synthesized with NumPy: no copyrighted music.
 - **17 challenge types + mixed video + perfect loop**, with a smart picker that avoids repeating challenges, an
   interactive menu and a scriptable CLI.
+- **Static feed images** (`generador_imagenes.py`): 4 viral 1080x1350 challenges drawn with Pillow (no generative AI),
+  each with a paste-ready copy and the hidden correct answer for your own control.
+- **Unique text per video (text spinning):** the opening hook, the closing follow call-to-action, the debate lines
+  of riddles and math, the title, the description and the hashtags are assembled from fragments picked by the seed (see
+  [Unique text](#unique-text-text-spinning)); the post text is never repeated.
 - **Publish-ready metadata**: each video produces a `.txt` with title, description (with a comment call-to-action),
   hashtags and the challenge answers.
 - Fixed **63 s** duration (valid range 61.5–65 s) to meet the In-Stream monetization minimum.
@@ -63,6 +68,47 @@ and closes with a call to comment the score.
 - **Smart random:** for each video 24 candidate seeds are scored against `output/historial.json` and the one most
   different from recent uploads wins (challenge, format, palette, shape, riddle and title are all considered).
 - The same seed + format always reproduces the same video.
+
+## Feed images
+
+`generador_imagenes.py` (or `iniciar_imagenes.bat` on Windows) draws **1080x1350 still images** meant to make people
+comment their answer and follow the page. They are drawn with Pillow (perfect text, 1-2 s each). Run it without
+arguments for a menu, or script it:
+
+```text
+python generador_imagenes.py --modo aleatorio --count 5
+python generador_imagenes.py --modo cubos --seed 42 --estilo montserrat --formato jpg
+```
+
+Modes: `pemdas` (order-of-operations equation, "the answer is NOT 0!"), `cubos` (isometric cube stack with hidden cubes),
+`fracciones` (polygon split into triangles, "what fraction is gray?") and `opciones` (look-alike Roman numerals, number
+sequences and classic trick questions). Each image goes to `output_imagenes/YYYY-MM-DD/` with a `.txt` holding the copy
+to paste, the **correct answer** (internal control), the explanation, the most common wrong answer, a comment to reveal the
+solution later and the alt text. Challenge and copy come from the seed and are logged in `output_imagenes/historial.json`
+so nothing repeats. Put your `.ttf` fonts (Montserrat, Poppins, Comic Neue, Anton...) in `fonts/` and pick one with
+`--estilo` or `--fuente`. The copy asks a question and asks to follow the page; avoid "comment YES/NO", "tag 3 friends" or
+"share to win" (Meta treats them as engagement bait).
+
+## Unique text (text spinning)
+
+Everything that is spoken or shown comes from template lists in `paradoja/copy_es.py`, expanded by `paradoja/spin.py`
+with the seed's `random.Random`: the same seed gives the same video, different seeds give different text. A template
+accepts `{option A|option B}` groups (nestable) and slots such as `<n>` or `<ans>`.
+
+| Piece | Where | Variants |
+|---|---|---|
+| **Opening hook** (2.5-4.4 s) | Narrated from 0.15 s and burned as a large chip while the first challenge sits still and visible | 600+ |
+| **Follow call-to-action** (last 4-5 s) | Narrated and burned on screen; every variant asks to follow | 290+ |
+| **Debate** (riddles, math) | At the reveal: "Many say X, but it is Y. What do you think?" plus an on-screen chip | dozens per challenge |
+| **Title, description, footers, pinned comment, hashtags** | `<name>.txt` and `<name>_publicar.txt` | thousands of combinations |
+
+The debate only states true things: the "X vs Y" confrontation is used when a real trap exists (the typical wrong
+answer, optional `"t"` field in `content/acertijos.json`); otherwise the viewer is simply asked. Each post stores a
+fingerprint in `output/historial.json` and is recomposed if it would match a recent one.
+
+Varying the text lowers repetition but is not enough by itself for Meta's original-content and spam policies: publishing
+many near-identical videos a day can still be treated as repetitive. Keep a sane posting pace, avoid links, use at most
+5 hashtags and enable the "AI label".
 
 ## Requirements
 

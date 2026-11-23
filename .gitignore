@@ -15,3 +15,8 @@ output/
 *.swp
 Thumbs.db
 .DS_Store
+
+# Imagenes generadas y fuentes descargadas por el usuario
+output_imagenes/
+fonts/*.ttf
+fonts/*.otf

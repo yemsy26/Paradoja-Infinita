@@ -97,7 +97,7 @@ class Timeline:
         if self.is_loop:  # un campanazo suave al inicio de cada vuelta
             P = self.scene.loop_period
             return [(P * k, "chime") for k in range(1, self.scene.loop_k)]
-        ev = []
+        ev = [(0.0, "whoosh")] if self.scene.lead > 0 else []      # entrada del gancho
         for a in self.acts:
             ev.append((a.start, "whoosh"))
             if TYPES[a.type].countdown:

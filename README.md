@@ -45,6 +45,11 @@ guion narrado y audio, de modo que cada video es estructuralmente distinto y a l
   interactivo o CLI para automatizar.
 - **Pensado para retención y alcance**: el primer fotograma ya lleva el reto y un gancho en pantalla, el texto respeta
   la zona segura de Reels y cada video exporta una **portada** (`*_portada.jpg`) para usarla como miniatura.
+- **Imágenes estáticas para el feed** (`generador_imagenes.py`): 4 retos virales de 1080×1350 dibujados con Pillow
+  (sin IA generativa), cada uno con su copy para pegar y la respuesta oculta de control.
+- **Texto único por video (text spinning)**: gancho de apertura, llamada a seguir del cierre, debate en acertijos y
+  cálculo, título, descripción y hashtags se arman con fragmentos elegidos por la semilla (ver
+  [Textos únicos](#textos-únicos-text-spinning)); el texto de publicación nunca se repite.
 - **Metadata lista para publicar**: cada video genera un `.txt` con título, descripción (con llamada a comentar y a
   compartir), comentario fijado sugerido, hashtags y las respuestas del reto.
 - Duración fija de **63 s** (rango válido 61,5–65 s) para cumplir el mínimo de monetización In-Stream.
@@ -218,8 +223,79 @@ realista creado digitalmente, y puede penalizar si no se declara ([anuncio de Me
 La narración de estos videos es una voz neuronal sintética, así que lo prudente es activar la «Etiqueta de IA» al
 publicar. Es una recomendación, no asesoría legal: comprueba la política vigente.
 
-Los títulos y descripciones se eligen entre varias versiones y evitan repetir los usados recientemente. Cada video se
-registra en `output/historial.json`, que usa la elección inteligente y la opción de estadísticas.
+Título, descripción, pies de compartir/seguir, comentario fijado y hashtags se arman con fragmentos (ver más abajo) y
+cada video guarda en `output/historial.json` la huella del texto: si saliera idéntico a uno reciente, se recompone. El
+historial también alimenta la elección inteligente y la opción de estadísticas.
+
+## Textos únicos (text spinning)
+
+Todo lo que se dice y se muestra sale de listas de plantillas en `paradoja/copy_es.py` que `paradoja/spin.py` expande
+con el generador de la semilla (`random.Random`), así que la misma semilla da el mismo video y semillas distintas dan
+textos distintos. Una plantilla admite grupos `{opción A|opción B}` (anidables) y huecos como `<n>` o `<ans>`:
+
+```python
+"{El|Más del} {90|95|97|99}% de las personas falla {este nivel|este reto|esta prueba}."   # 24 variantes
+```
+
+| Pieza | Dónde aparece | Variantes |
+|---|---|---|
+| **Gancho de apertura** (2,5–4,4 s) | Se narra desde 0,15 s y se muestra en una ficha grande mientras el primer reto está quieto y visible. Genérico + por categoría del reto | 600+ |
+| **Llamada a seguir** (últimos 4–5 s) | Se narra y se quema en pantalla; todas piden seguir la cuenta | 290+ (65+ en el bucle) |
+| **Debate** (acertijos y cálculo) | En la revelación: «Muchos dicen X, pero es Y. ¿Tú qué opinas?» y una ficha con la respuesta común | decenas por reto |
+| **Título, descripción, pies, comentario fijado, hashtags** | `<nombre>.txt` y `<nombre>_publicar.txt` | miles de combinaciones |
+
+Reglas del debate: solo se afirma lo cierto. El enfrentamiento «X vs Y» se usa cuando existe una **trampa real** (la
+respuesta equivocada típica: en los acertijos con números generados y en el cálculo es exacta; en `acertijos.json` se
+marca con el campo opcional `"t"`); en los demás casos solo se pregunta al espectador, sin inventar porcentajes.
+
+Para ampliar las listas basta con añadir plantillas a `copy_es.py`; `pytest` comprueba que todas las variantes
+expandidas están limpias, caben en pantalla y en su hueco de voz, y que todas las llamadas de cierre piden seguir.
+
+> **Sobre las políticas de Meta.** Variar el texto reduce la repetición, pero no basta por sí solo para cumplir las
+> políticas de contenido original y spam: si publicas decenas de videos casi idénticos al día, Meta puede tratarlos como
+> contenido repetitivo aunque cada texto sea distinto. Mantén un ritmo de publicación razonable, evita enlaces y
+> exceso de mayúsculas en la descripción (el generador ya lo respeta), usa como máximo 5 hashtags y activa la
+> «Etiqueta de IA». Frases como «el 99 % falla» son ganchos retóricos, no estadísticas medidas.
+
+## Imágenes para el feed
+
+`generador_imagenes.py` (o `iniciar_imagenes.bat` en Windows) crea **imágenes estáticas de 1080×1350** pensadas para
+que la gente comente su respuesta y siga la página. Se dibujan con [Pillow](https://python-pillow.org/): el texto sale
+perfecto y cada imagen tarda 1-2 s. Sin argumentos abre un menú; también se puede automatizar:
+
+```text
+python generador_imagenes.py --modo aleatorio --count 5
+python generador_imagenes.py --modo cubos --seed 42 --estilo montserrat --formato jpg
+```
+
+| Modo | Qué dibuja | Trampa |
+|---|---|---|
+| `pemdas` | **La Ecuación de la Discordia**: «¡La respuesta NO es 0!» y una operación como `7 − 7 × 7` | el orden de las operaciones (se calcula de izquierda a derecha) |
+| `cubos` | **Cubos isométricos** con algunos cubos escondidos detrás o debajo de otros | contar solo los que se ven |
+| `fracciones` | Polígono (cuadrado, hexágono u octógono) en triángulos, unos partidos en 4, con regiones grises y blancas | contar piezas en vez de áreas |
+| `opciones` | **Opción múltiple**: números romanos que se parecen, secuencias numéricas y preguntas clásicas con truco | opciones diseñadas para confundir |
+| `aleatorio` | Mezcla los cuatro y elige el menos usado recientemente | |
+
+Cada imagen se guarda en `output_imagenes/AAAA-MM-DD/` (PNG o JPG) con:
+
+- `<nombre>.txt`: el copy para pegar, la **respuesta correcta** (control interno, no publicar), la explicación, la respuesta
+  equivocada más común, el comentario para revelar la solución horas después y el texto alternativo de la imagen.
+- `<nombre>_publicar.txt`: solo el copy; queda además copiado al portapapeles en Windows (`--no-copy` lo desactiva).
+
+El reto y el copy salen de la semilla (misma semilla = misma imagen) y se anotan en `output_imagenes/historial.json`
+para no repetir nunca la misma ecuación, apilamiento, fracción, pregunta ni el mismo texto. Las respuestas se
+comprueban por código: la ecuación tiene resultado entero con y sin la prioridad, los cubos tienen siempre alguno
+oculto y cada columna se ve por arriba, la fracción distingue «contar piezas» de «medir áreas» y las opciones tienen una
+sola correcta.
+
+**Fuentes.** Copia a la carpeta `fonts/` los `.ttf` que prefieras (Montserrat, Poppins, Comic Neue, Anton...; ver
+`fonts/LEEME.txt`) y elige el estilo con `--estilo montserrat|poppins|comic|impacto` o `--fuente ruta.ttf` (en el menú,
+opción 6). Sin ellas usa Arial Black / Segoe UI Black / Impact del sistema. Solo se aceptan fuentes con los signos
+× ÷ − ¿ ¡ ñ y las tildes.
+
+> El copy pide la respuesta con una pregunta y pide seguir la página; no promete premios ni pide etiquetar o reaccionar a
+> cambio de algo. Meta trata «comenta SÍ/NO», «etiqueta a 3 amigos» o «comparte para ganar» como cebo de interacción y
+> reduce el alcance. Frases como «el 90 % falla» son ganchos retóricos, no estadísticas medidas.
 
 ## Qué cambia con la semilla
 
@@ -266,13 +342,18 @@ La integración continua las ejecuta en cada *push* y *pull request*. Consulta [
 ## Estructura del proyecto
 
 ```text
-main.py                  Menú interactivo / CLI
+main.py                  Menú interactivo / CLI de videos
 iniciar.bat              Lanzador con instalación automática (Windows)
+generador_imagenes.py    Menú interactivo / CLI de imágenes para el feed
+iniciar_imagenes.bat     Lanzador de las imágenes (Windows)
+fonts/                   Fuentes .ttf/.otf opcionales (Montserrat, Comic Neue...)
 paradoja/
   config.py              Constantes y VideoSpec (1080x1920, 60 fps)
   scene.py               Modelo de datos, tipos de reto y paletas
   acts.py                Generación de cada reto: parámetros, narración y texto en pantalla
   texts_es.py            Textos en español, números en palabras y gramática de figuras
+  spin.py                Motor de text spinning por semilla: {a|b} y <huecos>
+  copy_es.py             Pools de ganchos, llamadas a seguir, debate y fragmentos de publicación
   catalog.py             Historial y elección inteligente de retos
   timeline.py            Tiempo → uniforms del shader y eventos de sonido
   renderer.py            OpenGL headless (moderngl) → frames RGB24
@@ -282,6 +363,9 @@ paradoja/
   subtitles.py           Subtítulos ASS y HUD
   encoder.py             FFmpeg: pipe crudo + mezcla + subtítulos → NVENC
   metadata.py            Nombres de archivo y borrador de publicación (.txt)
+  clipboard.py           Copia el texto de publicación al portapapeles (Windows)
+  feed/                  Imágenes del feed: puzzles.py (retos), render.py + canvas.py (Pillow),
+                         copy_feed.py (texto), fonts.py, history.py, studio.py
 content/acertijos.json   Acertijos editables
 tests/                   Pruebas automatizadas
 docs/ARQUITECTURA.md     Diseño interno y cómo añadir un modo

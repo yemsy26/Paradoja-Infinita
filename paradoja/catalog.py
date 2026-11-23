@@ -22,8 +22,8 @@ def load_history(out_dir: Path) -> list:
         return []
 
 
-def entry_for(sc: Scene, slug: str, title: str) -> dict:
-    return {"date": date.today().isoformat(), "seed": sc.seed, "mode": sc.mode, "slug": slug, "title": title,
+def entry_for(sc: Scene, slug: str, title: str, post: str = "") -> dict:
+    return {"date": date.today().isoformat(), "seed": sc.seed, "mode": sc.mode, "slug": slug, "title": title, "post": post,
             "types": sorted({a.type for a in sc.acts}) or ["loop"], "palette": sc.palette.name, "shape": sc.shape,
             "riddles": [a.sym for a in sc.acts if a.type == "riddle" and a.sym >= 0]}   # -1 = acertijo generado
 
@@ -37,6 +37,11 @@ def append_history(out_dir: Path, entry: dict) -> None:
 
 def recent_titles(history: list, n: int = 80) -> list:
     return [e.get("title", "") for e in history[-n:]]
+
+
+def recent_posts(history: list, n: int = 1000) -> set:
+    """Huellas de los textos de publicacion ya usados (para no repetir nunca el mismo copy)."""
+    return {e["post"] for e in history[-n:] if e.get("post")}
 
 
 def pick_mode(mode: str, seed: int) -> str:

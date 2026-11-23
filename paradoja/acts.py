@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from . import copy_es
 from . import texts_es as T
 from .config import CAPTION_Y, COUNT_TOP_Y, MEMORY_LAYOUTS, SAFE_Y, SWARM_MAX, VideoSpec
 from .scene import (ILLUSIONS, SHAPES, TYPES, Act, Palette, _swarm_act, _swarm_positions, blocked_rows, swarm_clock)
@@ -30,7 +31,8 @@ class Ctx:
     hue_off: int
     hue_jit: float
     spec: VideoSpec
-    avail: float          # segundos disponibles para los actos (duracion - cierre)
+    avail: float          # segundos disponibles para los actos (duracion - apertura - cierre)
+    lead: float = 0.0     # apertura: gancho hablado antes del primer acto (el primer reto esta quieto y visible)
 
 
 def load_riddles() -> list:
@@ -64,16 +66,11 @@ def _plan(rng, mode: str, avail: float) -> list:
 
 # --------------------------------------------------------------------------- utilidades de narracion
 def _voice(rng, i, ty, S, instr, mid_pool=None, reveal="", countdown=True):
-    """Narracion estandar. Reglas de hueco (la voz de cada linea debe terminar antes de la siguiente):
-    gancho solo si S >= 8.2; linea intermedia solo si S >= 8.2; cuenta atras 'Tres, dos, uno' desde S-3."""
-    v = []
-    if i == 0 and S >= 8.2:
-        v += [(0.15, rng.choice(T.HOOK_SHORT)), (1.8, instr)]
-        mid_t = max(3.9, 1.8 + 0.6 * len(instr.split()) + 0.3)       # ~0.6 s por palabra de la instruccion
-    else:
-        text = f"{T.SPOKEN_LABEL[ty]} {T.NUMS[i]}. {instr}"
-        v.append((0.30, text))
-        mid_t = max(3.9, 0.30 + 0.6 * len(text.split()) + 0.3)
+    """Narracion estandar (el gancho de apertura lo narra el guion, antes del primer acto). Reglas de hueco (la voz de
+    cada linea debe terminar antes de la siguiente): linea intermedia solo si S >= 8.2; cuenta atras desde S-3."""
+    text = f"{T.SPOKEN_LABEL[ty]} {T.NUMS[i]}. {instr}"
+    v = [(0.30, text)]
+    mid_t = max(3.9, 0.30 + 0.6 * len(text.split()) + 0.3)           # ~0.6 s por palabra
     if mid_pool and S >= 8.2 and mid_t + 1.3 <= S - 3.0:
         v.append((mid_t, rng.choice(mid_pool)))
     if countdown and S >= 7.0:
@@ -83,9 +80,7 @@ def _voice(rng, i, ty, S, instr, mid_pool=None, reveal="", countdown=True):
 
 
 def _first(rng, i, ty, S, instr):
-    """Inicio de narracion para tipos sin cuenta atras (gancho + instruccion, o etiqueta + instruccion)."""
-    if i == 0 and S >= 8.2:
-        return [(0.15, rng.choice(T.HOOK_SHORT)), (1.8, instr)]
+    """Inicio de narracion para tipos sin cuenta atras: etiqueta + instruccion."""
     return [(0.30, f"{T.SPOKEN_LABEL[ty]} {T.NUMS[i]}. {instr}")]
 
 
@@ -99,28 +94,18 @@ def _big(text: str) -> int:
     return int(min(170, 980 / (0.56 * max(longest, 1))))
 
 
-HOOK_END = 2.2          # el gancho ocupa el primer fotograma y los primeros 2.2 s del video
-
-
-def _hook_item(rng, plan, accent: str) -> tuple:
-    """Gancho en pantalla (0 - HOOK_END s) para que el primer fotograma ya tenga texto: (t0, t1, texto, tamaño, bgr, y)."""
-    pool = T.HOOK_TEXT[TYPES[plan[0][0]].category]
-    text = rng.choice(pool).format(N=len(plan))
-    lines = textwrap.wrap(text, 22)
-    size = int(min(72, 940 / (0.66 * max(len(x) for x in lines))))
-    return (0.0, HOOK_END, "\\N".join(lines), size, accent, CAPTION_Y)
+def _fit_line(t: str) -> tuple:
+    """Una sola linea (el HUD ocupa la esquina y la barra de tiempo queda justo debajo); solo se parte si es muy larga."""
+    lines = textwrap.wrap(t, 38) if len(t) > 50 else [t]
+    return "\\N".join(lines), int(max(34, min(50, 940 / (0.62 * max(len(x) for x in lines)))))
 
 
 def _caption(text: str, S: float, length: float, rcap: str, accent: str, t0: float = 0.25) -> tuple:
     """Pregunta fija arriba durante la busqueda y respuesta corta durante la revelacion."""
-    def fit(t):
-        """Una sola linea (el HUD ocupa la esquina y la barra de tiempo queda justo debajo); solo se parte si es muy larga."""
-        lines = textwrap.wrap(t, 38) if len(t) > 50 else [t]
-        return "\\N".join(lines), int(max(34, min(50, 940 / (0.62 * max(len(x) for x in lines)))))
-    q, qs = fit(text)
+    q, qs = _fit_line(text)
     items = [(t0, S, q, qs, "", CAPTION_Y)]
     if rcap:
-        r, rs = fit(rcap)
+        r, rs = _fit_line(rcap)
         items.append((S, length - 0.1, r, rs, accent, CAPTION_Y))
     return tuple(items)
 
@@ -202,8 +187,7 @@ def _swarm(rng, ctx, a, st):
     x, y = _swarm_positions(pa, pb, n_part, swarm_clock(S, S, vmax))[0]
     quad = _quadrant(x, y)
     reveal = rng.choice(("Ahí estaba. ¿Lo seguiste?", "Ese era. ¿Acertaste?"))
-    voice = [(0.30, f"{T.SPOKEN_LABEL['swarm']} {T.NUMS[i]}. Sigue el punto rojo.")] if i else \
-        [(0.15, rng.choice(T.HOOK_SHORT)), (1.7, "Sigue el punto rojo.")]
+    voice = [(0.30, f"{T.SPOKEN_LABEL['swarm']} {T.NUMS[i]}. Sigue el punto rojo.")]
     voice += [(3.3, "Ahora es igual a todos."), (5.2, "No lo pierdas."), (S - 1.25, "¿Dónde quedó?"), (S + 0.25, reveal)]
     return dict(n=n_part, q=(vmax, 0.0), arrays=arrays, p=(rng.random(), rng.random()),
                 question="Sigue el punto rojo", rcap=f"ESTABA {quad.upper()}",
@@ -342,8 +326,7 @@ def _memory(rng, ctx, a, st):
     target = _grid_target(rng, cols, rows, cell, st)
     reveal = rng.choice(("Ese cambió. ¿Lo recordabas?", "Ese era. ¿Lo recordaste?")) if not a["last"] else \
         "Ese era. ¿Cuántos acertaste?"
-    first = [(0.15, rng.choice(T.HOOK_SHORT)), (1.55, "Memoriza las figuras.")] if (i == 0 and S >= 8.2) else \
-        [(0.30, f"{T.SPOKEN_LABEL['memory']} {T.NUMS[i]}. Memoriza las figuras.")]
+    first = [(0.30, f"{T.SPOKEN_LABEL['memory']} {T.NUMS[i]}. Memoriza las figuras.")]
     return dict(kind=kind, delta=1.0 - 0.4 * prog, target=target, p=(rng.random(), rng.random()),
                 grid=(cols, rows, cell, 0), question="Memoriza y encuentra el cambio",
                 rcap=T.KIND_REVEAL[kind].upper(),
@@ -370,6 +353,26 @@ def _stroop(rng, ctx, a, st):
     voice = _first(rng, i, "stroop", S, instr) + [(S + 0.25, answer.capitalize() + ".")]
     return dict(p=(rng.random(), rng.random()), items=tuple(items), question=instr, answer=answer, voice=tuple(voice),
                 kind=1, q=(0.16, (640 - 960) / 1080))
+
+
+# --- debate (acertijos y cálculo)
+def _speech_end(voice) -> float:
+    """Estimacion del instante en que termina la ultima linea de `voice` (~0.55 s por palabra)."""
+    t, text = voice[-1]
+    return t + 0.55 * len(text.split())
+
+
+def _debate(rng, a, ans: str, trap, q_end: float, trap_screen=None) -> tuple:
+    """Revelacion con debate: ([(t, voz)], ficha en pantalla). Solo se afirma lo cierto: con `trap` (la respuesta comun
+    equivocada) se enfrentan las dos; sin ella solo se pregunta al espectador. La linea previa solo si hay hueco."""
+    S = a["S"]
+    voice = []
+    if q_end + 0.4 <= S - 2.0:
+        voice.append((S - 2.0, copy_es.make_debate_pre(rng)))
+    budget = int((a["length"] - S - 0.4) * 1.25 / 0.42)         # palabras que caben con la voz acelerada como mucho un 25 %
+    voice.append((S + 0.25, copy_es.make_debate(rng, ans, trap, budget)))
+    text, size = _fit_line(copy_es.make_debate_screen(rng, trap_screen or trap))
+    return voice, (S + 0.4, a["length"] - 0.1, text, size, a["accent"], CAPTION_Y)
 
 
 # --- cálculo
@@ -407,8 +410,12 @@ def _math(rng, ctx, a, st):
     level = 0 if prog < 0.34 else 1 if prog < 0.67 else 2
     text, spoken, value, wrong = _gen_math(rng, level)
     q = f"{text} = ?"
-    items = ((0.2, S, q, _big(q), "", 640), (S, a["length"] - 0.1, f"{text} = {value}", _big(f"{text} = {value}"), "", 640))
-    voice = _first(rng, i, "math", S, f"¿Cuánto es {spoken}?") + [(S + 0.25, f"Es {T.num_es(value)}. ¿Dijiste {T.num_es(wrong)}?")]
+    first = _first(rng, i, "math", S, f"¿Cuánto es {spoken}?")
+    # la trampa del orden de operaciones es real: el debate enfrenta la cuenta de izquierda a derecha con la correcta
+    dvoice, chip = _debate(rng, a, T.num_es(value), T.num_es(wrong), _speech_end(first), str(wrong))
+    items = ((0.2, S, q, _big(q), "", 640), (S, a["length"] - 0.1, f"{text} = {value}", _big(f"{text} = {value}"), "", 640),
+             chip)
+    voice = first + dvoice
     return dict(p=(rng.random(), rng.random()), items=items, question=f"¿Cuánto es {text}?",
                 answer=f"{text} = {value} (trampa: {wrong})", voice=tuple(voice), kind=2, q=(0.15, (640 - 960) / 1080))
 
@@ -548,7 +555,8 @@ def _sequence(rng, ctx, a, st):
 
 
 # Acertijos con números generados: la estructura es conocida (trampas clásicas) pero los datos cambian siempre, así
-# que nunca se repite el mismo enunciado. Devuelven (pregunta, respuesta).
+# que nunca se repite el mismo enunciado. Devuelven (pregunta, respuesta, trampa): la trampa es la respuesta comun
+# equivocada (o None si no hay una clara) y alimenta el debate de la revelacion.
 _DAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 _PAIRS = (("un bate", "una pelota", "El bate", "la pelota"), ("una raqueta", "una pelota", "La raqueta", "la pelota"),
           ("un libro", "un marcapáginas", "El libro", "el marcapáginas"), ("una jarra", "un vaso", "La jarra", "el vaso"))
@@ -557,7 +565,7 @@ _PAIRS = (("un bate", "una pelota", "El bate", "la pelota"), ("una raqueta", "un
 def _rid_age(rng):
     son, diff = rng.randint(3, 14), rng.randint(24, 36)
     return (f"Entre padre e hijo suman {2 * son + diff} años y el padre tiene {diff} más. ¿Cuántos años tiene el hijo?",
-            f"{T.num_es(son).capitalize()} años.")
+            f"{T.num_es(son).capitalize()} años.", None)
 
 
 def _rid_bat(rng):
@@ -565,56 +573,57 @@ def _rid_bat(rng):
     a, b, A, bb = rng.choice(_PAIRS)
     total = f"{1 + 2 * cents / 100:.2f}".replace(".", ",")
     return (f"{a.capitalize()} y {b} cuestan {total} €. {A} cuesta 1 € más que {bb}. ¿Cuánto cuesta {bb}?",
-            f"{cents} céntimos.")
+            f"{cents} céntimos.", f"{2 * cents} céntimos")
 
 
 def _rid_machines(rng):
     n = rng.choice((3, 4, 6, 7, 8, 9))
     return (f"{T.num_es(n).capitalize()} máquinas hacen {T.num_es(n)} piezas en {T.num_es(n)} minutos. "
-            f"¿Cuánto tardan 100 máquinas en hacer 100 piezas?", f"{T.num_es(n).capitalize()} minutos.")
+            f"¿Cuánto tardan 100 máquinas en hacer 100 piezas?", f"{T.num_es(n).capitalize()} minutos.", "100 minutos")
 
 
 def _rid_lily(rng):
     d = rng.randint(20, 60)
-    return (f"Un nenúfar duplica su tamaño cada día y cubre un lago en {d} días. ¿Cuándo cubre la mitad?", f"El día {d - 1}.")
+    return (f"Un nenúfar duplica su tamaño cada día y cubre un lago en {d} días. ¿Cuándo cubre la mitad?", f"El día {d - 1}.", f"el día {d // 2}")
 
 
 def _rid_bells(rng):
     n, k = rng.choice((3, 4, 5, 6, 7)), rng.choice((1, 2, 3))
     m = rng.randint(n + 2, 12)
-    return (f"Un reloj da {n} campanadas en {k * (n - 1)} segundos. ¿Cuánto tarda en dar {m}?", f"{k * (m - 1)} segundos.")
+    return (f"Un reloj da {n} campanadas en {k * (n - 1)} segundos. ¿Cuánto tarda en dar {m}?", f"{k * (m - 1)} segundos.", f"{k * m} segundos")
 
 
 def _rid_cats(rng):
     c, b = rng.choice((2, 3, 4, 5)), rng.choice((50, 60, 80, 100))
     return (f"Si {T.num_es(c)} gatos cazan {T.num_es(c)} ratones en {T.num_es(c)} minutos, ¿cuántos gatos cazan {b} "
-            f"ratones en {b} minutos?", f"{T.num_es(c).capitalize()} gatos.")
+            f"ratones en {b} minutos?", f"{T.num_es(c).capitalize()} gatos.", f"{b} gatos")
 
 
 def _rid_coins(rng):
     x, y = rng.choice(((20, 10), (50, 20), (50, 10), (20, 5), (10, 5), (50, 5), (5, 2), (10, 2), (20, 2)))
-    return (f"Dos monedas suman {x + y} céntimos y una no es de {y} céntimos. ¿Cuáles son?", f"Una de {x} y una de {y}.")
+    return (f"Dos monedas suman {x + y} céntimos y una no es de {y} céntimos. ¿Cuáles son?", f"Una de {x} y una de {y}.", "imposible")
 
 
 def _rid_digits(rng):
     hi, lo = rng.randint(3, 9), rng.randint(1, 2)
     return (f"Soy un número de dos cifras: suman {hi + lo} y, si las invierto, el número baja {9 * (hi - lo)}. ¿Cuál soy?",
-            f"{10 * hi + lo}.")
+            f"{10 * hi + lo}.", None)
 
 
 def _rid_piles(rng):
     d, t = rng.choice((10, 20, 30, 40)), rng.choice((60, 80, 100, 120))
-    return (f"Reparto {t} monedas en dos montones y uno tiene {d} más que el otro. ¿Cuántas tiene el mayor?", f"{(t + d) // 2}.")
+    return (f"Reparto {t} monedas en dos montones y uno tiene {d} más que el otro. ¿Cuántas tiene el mayor?", f"{(t + d) // 2}.", f"{t // 2 + d}")
 
 
 def _rid_days(rng):
     k = rng.randrange(7)
-    return (f"Si anteayer fue {_DAYS[k]}, ¿qué día será pasado mañana?", f"{_DAYS[(k + 4) % 7].capitalize()}.")
+    return (f"Si anteayer fue {_DAYS[k]}, ¿qué día será pasado mañana?", f"{_DAYS[(k + 4) % 7].capitalize()}.", None)
 
 
 def _rid_half(rng):
     a, b = rng.choice((10, 12, 14, 15, 18, 20, 24, 30, 40)), rng.randint(5, 20)
-    return (f"¿Cuánto es {a} dividido entre medio, más {b}?", f"{2 * a + b}.")
+    half = f"{a / 2 + b:g}".replace(".", ",")                  # la trampa: dividir entre dos en vez de entre medio
+    return (f"¿Cuánto es {a} dividido entre medio, más {b}?", f"{2 * a + b}.", half)
 
 
 _RIDDLE_FAMILIES = (_rid_age, _rid_bat, _rid_machines, _rid_lily, _rid_bells, _rid_cats, _rid_coins, _rid_digits,
@@ -638,15 +647,17 @@ def _riddle(rng, ctx, a, st):
     riddles = load_riddles()
     if rng.random() < 0.3:                      # acertijo con números generados (nunca se repite el enunciado)
         fam = _pick(rng, _RIDDLE_FAMILIES, st.setdefault("fam", []))
-        (q, ans), idx = fam(rng), -1
+        (q, ans, trap), idx = fam(rng), -1
     else:
         idx = _pick(rng, range(len(riddles)), st.setdefault("riddles", []))
-        q, ans = riddles[idx]["q"], riddles[idx]["a"]
+        q, ans, trap = riddles[idx]["q"], riddles[idx]["a"], riddles[idx].get("t")
     wq, qsize = _riddle_layout(q)
     wa, asize = _riddle_layout(ans)
-    items = ((0.2, S, wq, qsize, "", RIDDLE_Y), (S, a["length"] - 0.1, "RESPUESTA\\N" + wa, asize, "", RIDDLE_Y))
+    first = [(0.30, f"{T.SPOKEN_LABEL['riddle']} {T.NUMS[i]}. {q}")]
+    dvoice, chip = _debate(rng, a, ans, trap, _speech_end(first))
+    items = ((0.2, S, wq, qsize, "", RIDDLE_Y), (S, a["length"] - 0.1, "RESPUESTA\\N" + wa, asize, "", RIDDLE_Y), chip)
     block = max((wq.count("\\N") + 1) * qsize, (wa.count("\\N") + 2) * asize) * 1.2          # alto del texto mas alto (px)
-    voice = ((0.30, f"{T.SPOKEN_LABEL['riddle']} {T.NUMS[i]}. {q}"), (S + 0.25, ans))
+    voice = tuple(first + dvoice)
     return dict(sym=idx, p=(rng.random(), rng.random()), items=items, question=q, answer=ans, voice=voice,
                 kind=0, q=((block / 2 + 55) / 1080, (RIDDLE_Y - 960) / 1080))
 
@@ -677,8 +688,7 @@ def _cups(rng, ctx, a, st):
     for k, sw in enumerate(swaps):
         pa[k] = sw
     instr = "Sigue la bola."
-    voice = ([(0.15, rng.choice(T.HOOK_SHORT)), (1.8, instr)] if i == 0 and S >= 8.2
-             else [(0.30, f"{T.SPOKEN_LABEL['cups']} {T.NUMS[i]}. {instr}")])
+    voice = [(0.30, f"{T.SPOKEN_LABEL['cups']} {T.NUMS[i]}. {instr}")]
     if S >= 9.0:
         voice.append((4.3, rng.choice(T.CUPS_MID)))
     voice += [(S - 1.5, "¿Dónde está?"),
@@ -745,18 +755,15 @@ def build_acts(rng, mode: str, ctx: Ctx) -> tuple:
     plan = _plan(rng, mode, ctx.avail)
     n = len(plan)
     accent = _bgr(ctx.pal.accent)
-    hook = _hook_item(rng, plan, accent)
     state, acts = {}, []
     for i, (ty, start, length, S) in enumerate(plan):
+        start += ctx.lead                      # los actos empiezan tras la apertura (gancho hablado)
         prog = i / (n - 1) if n > 1 else 0.0
-        a = dict(i=i, S=S, start=start, length=length, prog=prog, last=(i == n - 1))
+        a = dict(i=i, S=S, start=start, length=length, prog=prog, last=(i == n - 1), accent=accent)
         fields = _BUILDERS[ty](rng, ctx, a, state.setdefault(ty, {}))
         rcap = fields.pop("rcap", "")
         if ty in CAPTION_TYPES:
-            fields["items"] = _caption(fields["question"], S, length, rcap, accent,
-                                       HOOK_END + 0.1 if i == 0 else 0.25) + tuple(fields.get("items", ()))
-        if i == 0:
-            fields["items"] = (hook,) + tuple(fields.get("items", ()))
+            fields["items"] = _caption(fields["question"], S, length, rcap, accent) + tuple(fields.get("items", ()))
         fields.setdefault("grid", (ctx.cols, ctx.rows, ctx.cell, int(ctx.hex_layout)))
         fields.setdefault("delta", 1.0 - MIN_DELTA_RANGE * prog)
         fields["hue"] = (ctx.pal.hues[(ctx.hue_off + i) % len(ctx.pal.hues)] + ctx.hue_jit) % 1.0

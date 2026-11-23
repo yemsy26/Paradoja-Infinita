@@ -9,6 +9,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from . import copy_es
+from .spin import fill
 from .config import ANSWER_TOP, BOTTOM_SAFE, LAYOUTS, SAFE_Y, SUB_BAND, SWARM_MAX, VideoSpec
 
 
@@ -37,9 +39,9 @@ TYPES = {t.name: t for t in (
     TypeInfo("flicker", 9, "¿QUÉ CAMBIA?", 11.0, True, "Atención", "Qué cambió", "Detecta lo que cambia entre dos imágenes"),
     TypeInfo("memory", 9, "MEMORIA", 12.0, False, "Memoria", "Memoria", "Memoriza las figuras y encuentra el cambio"),
     TypeInfo("stroop", 10, "COLORES", 9.5, False, "Mente", "Efecto Stroop", "Di el color de la tinta, no la palabra", 3.5),
-    TypeInfo("math", 10, "CÁLCULO", 11.0, True, "Mente", "Cálculo", "Operaciones con trampa de orden", 3.5),
+    TypeInfo("math", 10, "CÁLCULO", 12.5, True, "Mente", "Cálculo", "Operaciones con trampa de orden", 5.0),
     TypeInfo("sequence", 10, "SECUENCIA", 11.0, True, "Mente", "Secuencia", "¿Qué número sigue?", 3.5),
-    TypeInfo("riddle", 10, "ACERTIJO", 12.5, False, "Mente", "Acertijo", "Acertijos y preguntas trampa", 3.5),
+    TypeInfo("riddle", 10, "ACERTIJO", 14.0, False, "Mente", "Acertijo", "Acertijos y preguntas trampa", 5.0),
     TypeInfo("cups", 11, "VASOS", 12.0, False, "Atención", "Vasos", "¿En qué vaso quedó la bola?"),
     TypeInfo("simon", 12, "SIMÓN", 11.5, False, "Memoria", "Simón", "Recuerda el orden en que se iluminan los pads"),
     TypeInfo("digits", 13, "NÚMEROS", 11.0, True, "Visual", "Número distinto", "Encuentra el número diferente"),
@@ -140,6 +142,10 @@ class Scene:
     loop_k: int
     loop_period: float
     loop_ints: tuple
+    # Textos dichos y quemados en pantalla, elegidos por semilla (ver copy_es.py)
+    hook: str = ""       # gancho de apertura (se narra en 0.15 s y se muestra en grande mientras dura `lead`)
+    lead: float = 0.0    # segundos de apertura antes del primer acto (el primer reto esta quieto y visible)
+    cta: str = ""        # llamada a seguir de los ultimos `outro_len` segundos (se narra y se muestra)
 
 
 SWARM_CY = -0.02
@@ -208,14 +214,25 @@ def build_scene(seed: int, mode: str, spec: VideoSpec) -> Scene:
     shape = rng.randrange(len(SHAPES))
     cols, rows, cell = rng.choice(LAYOUTS)
     hex_layout = rng.random() < 0.4
-    outro_len = rng.choice((4.0, 4.5))        # cierre: nota, compartir y seguir
+    outro_len = rng.choice((4.0, 4.5, 5.0))   # cierre: llamada a seguir (voz + pantalla), nota y compartir
     hue_off = rng.randrange(len(pal.hues))
     hue_jit = rng.uniform(-0.02, 0.02)
 
+    # Textos propios con un generador aparte: elegirlos no consume numeros del generador de los retos (el largo del
+    # gancho si fija `lead`, y con el, el tiempo que queda para los actos)
+    trng = random.Random(seed ^ 0x7E27)
+    loop = mode == "loop"
+    category = TYPES[mode].category if mode in TYPES else None
+    hook = copy_es.make_hook(trng, category, "<n>", loop=loop)           # <n> se rellena al conocer el numero de retos
+    cta = copy_es.make_cta(trng, loop=loop)
+    lead = 0.0 if loop else copy_es.hook_lead(hook)
+
     acts = ()
-    if mode != "loop":
-        ctx = acts_mod.Ctx(pal, shape, cols, rows, cell, hex_layout, hue_off, hue_jit, spec, spec.duration - outro_len)
+    if not loop:
+        ctx = acts_mod.Ctx(pal, shape, cols, rows, cell, hex_layout, hue_off, hue_jit, spec,
+                           spec.duration - outro_len - lead, lead)
         acts = acts_mod.build_acts(rng, mode, ctx)
+    hook = fill(hook, n=len(acts))
 
     k = rng.choice((3, 5, 7, 9))
     ints = tuple(rng.choice((-3, -2, -1, 1, 2, 3)) for _ in range(3))
@@ -224,7 +241,7 @@ def build_scene(seed: int, mode: str, spec: VideoSpec) -> Scene:
         rng.randrange(4), rng.uniform(0.5, 1.9), rng.randrange(4), rng.choice((0.0, 0.0, 0.5, -0.5, 0.9)),
         rng.randrange(3), rng.choice((3, 4, 5, 6, 8)), outro_len,
         tuple(rng.random() for _ in range(4)), tuple(acts),
-        rng.randrange(3), k, spec.duration / k, ints,
+        rng.randrange(3), k, spec.duration / k, ints, hook=hook, lead=lead, cta=cta,
     )
 
 

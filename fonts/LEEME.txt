@@ -1,0 +1,16 @@
+Fuentes para las imagenes del feed (generador_imagenes.py)
+==========================================================
+Copia aqui los archivos .ttf o .otf de las fuentes gruesas que quieras usar. Se buscan primero en esta carpeta y despues
+en las fuentes instaladas del sistema.
+
+Recomendadas (gratuitas, licencia OFL, https://fonts.google.com):
+  - Montserrat  (Montserrat-Black.ttf y Montserrat-ExtraBold.ttf)   -> estilo "montserrat"
+  - Poppins     (Poppins-Black.ttf y Poppins-ExtraBold.ttf)         -> estilo "poppins"
+  - Comic Neue  (ComicNeue-Bold.ttf)                                -> estilo "comic"
+  - Anton       (Anton-Regular.ttf)                                 -> estilo "impacto"
+
+Sin ninguna de ellas se usan Arial Black / Segoe UI Black / Impact de Windows (o DejaVu en Linux).
+Solo se aceptan fuentes que tengan los signos x ÷ − ¿ ¡ ñ y las tildes.
+
+Elegir una: python generador_imagenes.py --estilo montserrat     o     --fuente "C:\ruta\mi_fuente.ttf"
+En el menu: opcion [6] Estilo de letra. Los .ttf de esta carpeta no se suben a Git.

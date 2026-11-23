@@ -52,7 +52,7 @@ def test_different_seeds_give_different_content(mode):
 @pytest.mark.parametrize("seed", SEEDS)
 def test_acts_are_contiguous_and_fill_duration(mode, seed):
     sc, tl = _make(mode, seed)
-    assert sc.acts[0].start == 0.0
+    assert 2.5 <= sc.lead <= 4.4 and sc.acts[0].start == pytest.approx(sc.lead)      # apertura: el gancho suena antes del reto 1
     for a, b in zip(sc.acts, sc.acts[1:]):
         assert a.end == pytest.approx(b.start)
     assert sc.acts[-1].end + sc.outro_len == pytest.approx(SPEC.duration)
@@ -174,8 +174,8 @@ def test_script_fits_timeline(mode, seed):
     assert all(s.text.strip() for s in segs)
     for a in sc.acts:
         assert all(0 <= t < a.length - 0.1 for t, _ in a.voice)
-    if sc.mode != "loop":
-        assert segs[0].start < 1.0                       # el reto empieza de inmediato (sin gancho largo)
+    assert segs[0].text == sc.hook and segs[-1].text == sc.cta       # gancho al inicio, llamada a seguir al final
+    assert segs[-1].start == pytest.approx(SPEC.duration - sc.outro_len + 0.2)
 
 
 def test_spanish_numbers():
@@ -190,7 +190,7 @@ def test_slug_and_metadata_file(mode, tmp_path):
     slug = video_slug(sc)
     assert slug.startswith(MODE_SLUG[mode] + "_") and slug.endswith("_2024")
     assert slug == slug.lower() and " " not in slug and slug.isascii()
-    path, title = write_metadata(tmp_path / f"{slug}.txt", sc, tl, f"{slug}.mp4")
+    path, title, _h = write_metadata(tmp_path / f"{slug}.txt", sc, tl, f"{slug}.mp4")
     text = path.read_text("utf-8-sig")
     for header in ("TIPO DE VIDEO:", "VARIABLES", "TÍTULO SUGERIDO:", "DESCRIPCIÓN (COPY):", "HASHTAGS:"):
         assert header in text
@@ -202,8 +202,8 @@ def test_slug_and_metadata_file(mode, tmp_path):
 
 def test_metadata_avoids_recently_used_titles(tmp_path):
     sc, tl = _make("anomaly", 11)
-    _, first = write_metadata(tmp_path / "a.txt", sc, tl, "a.mp4")
-    _, second = write_metadata(tmp_path / "b.txt", sc, tl, "b.mp4", avoid=[first])
+    _, first, _h = write_metadata(tmp_path / "a.txt", sc, tl, "a.mp4")
+    _, second, _h = write_metadata(tmp_path / "b.txt", sc, tl, "b.mp4", avoid=[first])
     assert first != second
 
 
@@ -267,26 +267,32 @@ def test_count_frozen_figures_are_countable(seed):
 
 @pytest.mark.parametrize("mode", ACT_MODES)
 def test_every_visual_challenge_pins_its_question_and_answer(mode):
-    from paradoja.acts import CAPTION_TYPES, HOOK_END
+    from paradoja.acts import CAPTION_TYPES
     sc, _ = _make(mode, 42)
     for a in sc.acts:
         if a.type in CAPTION_TYPES:
-            top = [it for it in a.items if it[5] == CAPTION_Y and it[0] > 0.0]       # sin el gancho del primer segundo
-            first_start = HOOK_END if a.index == 0 else 0.5
-            assert top and top[0][0] < first_start + 0.3 and top[0][1] == pytest.approx(a.search)   # pregunta en la busqueda
+            top = [it for it in a.items if it[5] == CAPTION_Y]
+            assert top and top[0][0] < 0.5 and top[0][1] == pytest.approx(a.search)   # pregunta en la busqueda
             assert any(it[0] == pytest.approx(a.search) for it in top)               # respuesta al revelar
             assert all(it[1] <= a.length for it in top)
 
 
 @pytest.mark.parametrize("mode", ACT_MODES)
 def test_first_frame_has_a_hook_and_the_challenge_is_already_on_screen(mode):
-    """Las miniaturas salian oscuras: el primer fotograma debe llevar gancho y el reto ya formado (u_pop = 1)."""
+    """Las miniaturas salian oscuras: el primer fotograma debe llevar el gancho (ficha en pantalla y voz desde 0,15 s) y el
+    primer reto ya formado (u_pop = 1) y quieto mientras suena."""
+    from paradoja.subtitles import build_ass
     sc, tl = _make(mode, 7)
-    hook = [it for it in sc.acts[0].items if it[0] == 0.0]
-    assert len(hook) == 1 and hook[0][5] == CAPTION_Y and hook[0][1] >= 2.0
-    assert hook[0][2].replace(chr(92) + "N", " ").isupper() or any(c.isdigit() for c in hook[0][2])
-    assert tl.uniforms(0.0)["u_pop"] == pytest.approx(1.0)
+    assert sc.hook and "<" not in sc.hook and sc.cta and "<" not in sc.cta
+    segs = build_script(sc, tl)
+    assert segs[0].text == sc.hook and segs[0].start == pytest.approx(0.15)
+    assert tl.uniforms(0.0)["u_pop"] == pytest.approx(1.0) and tl.uniforms(sc.lead - 0.01)["u_pop"] == pytest.approx(1.0)
     assert tl.uniforms(sc.acts[1].start + 0.0)["u_pop"] < 0.01            # los demas actos si entran con transicion
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        ass = build_ass(Path(d) / "s.ass", [], tl, SPEC).read_text("utf-8")
+    chip = [ln for ln in ass.splitlines() if ln.startswith("Dialogue: 0,0:00:00.00,") and ",Cap," in ln]
+    assert len(chip) == 1 and sc.hook.upper().split()[0] in chip[0]       # ficha del gancho desde el primer fotograma
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -320,7 +326,8 @@ def test_outro_asks_for_score_share_and_follow(tmp_path):
     from paradoja.subtitles import build_ass
     sc, tl = _make("anomaly", 11)
     ass = build_ass(tmp_path / "s.ass", [], tl, SPEC).read_text("utf-8")
-    for needle in ("COMENTA TU NOTA", "ENVÍASELO A QUIEN NO LO ACIERTE", "SÍGUENOS", f"¿CUÁNTOS DE {len(sc.acts)} ACERTASTE?", "FINAL"):
+    for needle in ("COMENTA TU NOTA", "ENVÍASELO A QUIEN NO LO ACIERTE", f"¿CUÁNTOS DE {len(sc.acts)} ACERTASTE?", "FINAL",
+                   sc.cta.upper().split()[0]):                 # la llamada a seguir (la que se narra) tambien se quema
         assert needle in ass
 
 
@@ -417,20 +424,21 @@ def test_generated_riddles_have_the_right_answers():
     rng = random.Random(7)
     for fam in _RIDDLE_FAMILIES:
         for _ in range(60):
-            q, a = fam(rng)
+            q, a, trap = fam(rng)
             assert q.endswith("?") and a and "{" not in q and "{" not in a
+            assert trap is None or (trap.strip() and trap.strip().rstrip(".").lower() != a.strip().rstrip(".").lower())
             assert _riddle_layout(q)[1] >= 58
     # comprobaciones de cuentas
     import re
     for _ in range(60):
-        q, a = _RIDDLE_FAMILIES[0](rng)                                    # padre e hijo
+        q, a, _t = _RIDDLE_FAMILIES[0](rng)                                    # padre e hijo
         tot, diff = map(int, re.findall(r"\d+", q))
         son = (tot - diff) // 2
         assert (tot - diff) % 2 == 0 and son >= 3 and a.lower().startswith(num_es(son))
-        q, a = _RIDDLE_FAMILIES[4](rng)                                    # campanadas
+        q, a, _t = _RIDDLE_FAMILIES[4](rng)                                    # campanadas
         n, t, m = map(int, re.findall(r"\d+", q))
         assert int(a.split()[0]) == t * (m - 1) // (n - 1) and t % (n - 1) == 0
-        q, a = _RIDDLE_FAMILIES[7](rng)                                    # numero de dos cifras
+        q, a, _t = _RIDDLE_FAMILIES[7](rng)                                    # numero de dos cifras
         s_, d_ = map(int, re.findall(r"\d+", q))
         num = int(a.rstrip("."))
         hi, lo = divmod(num, 10)
@@ -488,7 +496,7 @@ def test_publish_block_is_clean_and_ready_to_paste(tmp_path):
         assert 3 <= len(post["tags"]) <= 5 and post["tags"][-1] == "#ParadojaInfinita"             # Meta: maximo 5 hashtags
         assert len(post["title"]) <= 110 and "📤" in paste and "➕" in paste
     sc, tl = _make("riddle", 5)
-    path, title = write_metadata(tmp_path / "x.txt", sc, tl, "x.mp4")
+    path, title, _h = write_metadata(tmp_path / "x.txt", sc, tl, "x.mp4")
     only = (tmp_path / "x_publicar.txt").read_text("utf-8-sig").strip()
     full = path.read_text("utf-8-sig")
     assert only in full and full.index("COPIAR Y PEGAR") < full.index("TIPO DE VIDEO:") and AI_LABEL_NOTE in full

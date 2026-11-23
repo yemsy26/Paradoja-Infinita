@@ -3,6 +3,53 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.5.0] - 2026-11-23
+
+Imágenes estáticas para el feed de Facebook.
+
+### Añadido
+- **`generador_imagenes.py`** (menú interactivo y CLI) y `iniciar_imagenes.bat`: imágenes de 1080×1350 dibujadas con
+  Pillow, sin IA generativa, con fondos vibrantes, texto grande con contorno y relieve y franja de «comenta tu respuesta»
+  y «síguenos».
+- 4 retos: **La Ecuación de la Discordia** (PEMDAS), **cubos isométricos** con cubos ocultos, **fracciones engañosas**
+  (cuadrado, hexágono u octógono con triángulos partidos) y **opción múltiple tramposa** (números romanos parecidos,
+  secuencias y preguntas clásicas), más un modo aleatorio que reparte los cuatro.
+- Por imagen: `.txt` con el copy para pegar, la respuesta correcta (control interno), la explicación, la respuesta
+  equivocada más común, el comentario para revelar la solución y el texto alternativo, y `_publicar.txt` con solo el copy
+  (copiado al portapapeles en Windows). Carpeta `output_imagenes/AAAA-MM-DD/` e historial para no repetir retos ni textos.
+- Fuentes TrueType: carpeta `fonts/`, estilos `montserrat`, `poppins`, `comic` e `impacto` y `--fuente`; sin ellas, las del
+  sistema, comprobando que tengan × ÷ − ¿ ¡ ñ y tildes.
+- Pruebas `tests/test_feed.py` (respuestas, visibilidad de los cubos, unicidad del copy, dibujo, archivos y menú).
+
+### Cambiado
+- Nueva dependencia: `pillow` (`requirements.txt` y CI). `copy_file_to_clipboard` pasa a `paradoja/clipboard.py`.
+
+## [1.4.0] - 2026-11-22
+
+Textos únicos por video (text spinning) para retención y seguidores, sin repetir nunca el mismo guion ni el mismo copy.
+
+### Añadido
+- **Motor de text spinning** (`paradoja/spin.py`): plantillas con grupos `{a|b|c}` y huecos `<n>`, expandidas con el
+  generador de la semilla (misma semilla = mismo texto).
+- **Pool de ganchos** (`paradoja/copy_es.py`, más de 600 variantes, genérico y por categoría del reto): se narra desde
+  0,15 s y se muestra en una ficha grande. Nueva **apertura** de 2,5–4,4 s en la que el primer reto está quieto y visible.
+- **Pool de llamadas a seguir** (más de 290 variantes, 65 en el bucle): se narra y se quema en pantalla durante los
+  últimos 4–5 s; todas piden seguir la cuenta.
+- **Debate en acertijos y cálculo**: en la revelación se enfrenta la respuesta común equivocada con la correcta («Muchos
+  dicen X, pero es Y. ¿Tú qué opinas?») con una ficha en pantalla; sin trampa conocida solo se pregunta al espectador.
+  Las familias de acertijos generados devuelven la trampa y 24 acertijos de `acertijos.json` llevan el campo opcional
+  `"t"`. Línea previa «piénsalo bien» cuando hay hueco. Revelación de 5 s en cálculo y acertijo.
+- **Texto de publicación por fragmentos** con huella en `output/historial.json`: título (esqueleto + apertura + cierre),
+  descripción, pies de compartir/seguir, comentario fijado y hashtags (3–4 del tipo en orden aleatorio + la marca);
+  si la huella coincide con una publicación reciente, se recompone.
+- Pruebas `tests/test_copy.py` (motor, pools, debate, pantalla y unicidad del copy).
+
+### Cambiado
+- El cierre usa la llamada a seguir elegida por la semilla (antes una fija), con ficha grande bajo la marca; duración
+  4, 4,5 o 5 s. El enunciado del primer reto de texto ya se lee durante el gancho.
+- `write_metadata` devuelve también la huella del texto; `catalog.entry_for` la guarda y `catalog.recent_posts` la lee.
+- Las semillas anteriores ya no reproducen el mismo video (cambian la apertura y el reparto de actos).
+
 ## [1.3.0] - 2026-11-22
 
 Variedad de contenido, texto de publicación y aspecto de los retos de texto.

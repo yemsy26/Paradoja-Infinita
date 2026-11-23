@@ -13,7 +13,8 @@ from datetime import date
 from pathlib import Path
 
 from paradoja.audio import build_bed
-from paradoja.catalog import append_history, choose, entry_for, load_history, pick_mode, recent_titles, stats
+from paradoja.catalog import append_history, choose, entry_for, load_history, pick_mode, recent_posts, recent_titles, stats
+from paradoja.clipboard import copy_file_to_clipboard
 from paradoja.config import VideoSpec
 from paradoja.encoder import FfmpegEncoder, pick_codec
 from paradoja.metadata import AI_LABEL_NOTE, MODE_LABEL, video_slug, write_metadata
@@ -37,19 +38,6 @@ MENU = """
   [4] Estadisticas y ultimos videos
   [0] Salir
 ------------------------------------------------------------------"""
-
-
-def copy_file_to_clipboard(path: Path) -> bool:
-    """Copia el contenido de un archivo UTF-8 al portapapeles de Windows (conserva tildes y emojis)."""
-    if sys.platform != "win32":
-        return False
-    safe = str(path).replace("'", "''")
-    cmd = f"Set-Clipboard -Value ((Get-Content -Raw -Encoding UTF8 -LiteralPath '{safe}').TrimEnd())"
-    try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", cmd], check=True, timeout=20, capture_output=True)
-        return True
-    except (OSError, subprocess.SubprocessError):
-        return False
 
 
 def generate(mode: str, seed: int, args) -> int:
@@ -97,8 +85,9 @@ def generate(mode: str, seed: int, args) -> int:
                    capture_output=True)
 
     history = load_history(args.out)
-    meta, title = write_metadata(out.with_suffix(".txt"), scene, tl, out.name, recent_titles(history))
-    append_history(args.out, entry_for(scene, slug, title))
+    meta, title, digest = write_metadata(out.with_suffix(".txt"), scene, tl, out.name, recent_titles(history),
+                                         recent_posts(history))
+    append_history(args.out, entry_for(scene, slug, title, digest))
 
     print("[4/4] Verificando...")
     info = subprocess.run(
