@@ -3,6 +3,18 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.9.0] - 2026-11-24
+
+Herramienta de diagnóstico de vistas (solo lectura).
+
+### Añadido
+- **`comparar_reels.py`** (módulo `paradoja/autopilot/diagnostico.py`): lee los Reels de la página con `GET` y compara las vistas
+  de los publicados por el autopiloto con las de los subidos a mano (mediana, media, mínimo y máximo con edad mínima configurable
+  y una lectura prudente de la diferencia). Cada ejecución guarda una foto de las vistas en `diagnostico_reels.json` (en
+  `.gitignore`) y, con varias, calcula las vistas de cada Reel a +1 h y a +24 h para una prueba A/B limpia. No imprime nunca el token.
+- `GraphClient.get()`: lectura genérica de solo lectura que elimina todos los `paging` de la respuesta (sus URLs llevan el token).
+- Guía de la prueba A/B y de las comprobaciones (modo de la app, visibilidad con una cuenta sin rol) en `docs/AUTOPILOTO.md`.
+
 ## [1.8.0] - 2026-11-24
 
 Sin etiqueta de IA por defecto, textos sin cebos de interacción, separación mínima entre publicaciones y plantillas sin repetir.

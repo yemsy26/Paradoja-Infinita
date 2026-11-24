@@ -158,3 +158,34 @@ franja, hora, archivo, id de Meta y si fue `ok` o `ambiguo`) y el estado de cada
   código, no con IA generativa).
 - Seguridad: el token no se imprime ni se guarda en el log (se sustituye por `***`). Si crees que se filtró, revócalo desde
   la configuración de tu app y genera otro.
+
+## 7. Diagnóstico: ¿se distribuyen igual los Reels de la API y los subidos a mano?
+
+`comparar_reels.py` responde con datos (solo hace peticiones GET: no publica, no edita, no borra):
+
+```powershell
+python comparar_reels.py                      # tabla de Reels con vistas y edad + resumen autopiloto frente al resto
+python comparar_reels.py --detalle 30         # más filas
+python comparar_reels.py --manual 123 456     # marca esos ids de video como subidos a mano
+python comparar_reels.py --no-guardar         # no guarda la foto de vistas de esta ejecución
+```
+
+- **Origen.** «autopiloto» = el id está en `estado_autopiloto.json`; el resto («otro») son los manuales y los anteriores al autopiloto.
+- **Resumen.** Mediana, media, mínimo y máximo de vistas por grupo, usando solo Reels con una edad mínima (`--edad-min`, 6 h por
+  defecto) para comparar lo comparable, y una lectura prudente: cuantifica la diferencia, no afirma la causa.
+- **Fotos de vistas.** Cada ejecución guarda las vistas actuales en `diagnostico_reels.json` (en `.gitignore`: son métricas tuyas).
+  Con varias fotos el informe rellena las columnas «a +1 h» y «a +24 h» de cada Reel, que es lo que se necesita para una prueba A/B.
+- **Límites.** Con el permiso actual (`pages_read_engagement`) Meta solo deja leer `views` y los comentarios; las reproducciones, el
+  tiempo medio visto y la retención piden `read_insights` o consultarlos a mano en Meta Business Suite. El token nunca se imprime.
+
+### Prueba A/B limpia (autopiloto frente a manual)
+
+1. Genera 6 videos de la misma plantilla y duración. Elige 3 para subir **a mano** y 3 para el **autopiloto** (`--ahora video`).
+2. Alterna el orden y respeta 3 h entre publicaciones (`MIN_INTERVALO_MINUTOS`), para que la hora del día no favorezca a una vía.
+3. Ejecuta `python comparar_reels.py` justo después de cada subida, a +1 h y a +24 h.
+4. Compara las columnas «a +1 h» y «a +24 h» de cada vía. Si los del autopiloto se quedan en 1–2 y los manuales superan las decenas,
+   el limitante es la visibilidad de lo que publica la API, no el archivo (ambas vías suben el mismo tipo de `.mp4`).
+5. Comprueba la causa más probable: en developers.facebook.com abre tu app e interruptor «Modo». Según la documentación de Meta,
+   solo los usuarios con rol ven lo que publica una app en **modo desarrollo**; al pasar a **modo activo** pasa a verse para todos.
+   También puedes abrir el enlace de un Reel del autopiloto en una ventana de incógnito o con una cuenta sin rol.
+

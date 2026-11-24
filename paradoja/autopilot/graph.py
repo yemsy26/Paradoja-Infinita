@@ -60,6 +60,15 @@ def _never_sent(exc: Exception) -> bool:
             or "getaddrinfo failed" in text or "name or service not known" in text)
 
 
+def _strip_paging(obj):
+    """Copia de `obj` sin ninguna clave `paging` (a cualquier profundidad)."""
+    if isinstance(obj, dict):
+        return {k: _strip_paging(v) for k, v in obj.items() if k != "paging"}
+    if isinstance(obj, list):
+        return [_strip_paging(v) for v in obj]
+    return obj
+
+
 class GraphClient:
     def __init__(self, page_id: str, token: str, version: str = "v26.0", http=None, sleep=time.sleep, log=None):
         self.page_id, self.token, self.version = page_id, token, version
@@ -117,6 +126,14 @@ class GraphClient:
         """Comprueba el token y el acceso a la pagina (no publica nada). -> {'id', 'name'}"""
         return self._call("GET", f"{self.base}/{self.page_id}", "check",
                           params={"fields": "id,name", "access_token": self.token}, timeout=30)
+
+    # ------------------------------------------------------------------ lectura generica
+    def get(self, path: str, **params) -> dict:
+        """GET de solo lectura a cualquier nodo (`{id}`, `{pagina}/video_reels`, `` + `ids=a,b` para varios a la vez).
+        Elimina todos los `paging` de la respuesta: sus URLs incluyen el token y nunca deben llegar a pantalla ni a un log."""
+        params["access_token"] = self.token
+        body = self._call("GET", f"{self.base}/{path.lstrip('/')}", "lectura", params=params, timeout=40)
+        return _strip_paging(body)
 
     # ------------------------------------------------------------------ fotos
     def post_photo(self, path: Path, caption: str, alt: str | None = None) -> dict:

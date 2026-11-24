@@ -27,3 +27,4 @@ autopiloto.log*
 autopiloto_estado.json
 autopiloto.lock
 estado_autopiloto.json*
+diagnostico_reels.json

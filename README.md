@@ -319,6 +319,7 @@ opción 6). Sin ellas usa Arial Black / Segoe UI Black / Impact del sistema. Sol
 python autopiloto.py --check               # comprueba el token y la página, sin publicar
 python autopiloto.py --dry-run --ahora foto  # ensayo: genera pero no publica
 python autopiloto.py --estado              # lo publicado hoy y lo pendiente (solo lee)
+python comparar_reels.py                   # vistas de los Reels del autopiloto frente a los subidos a mano (solo lee)
 python autopiloto.py                       # modo autopiloto (o iniciar_autopiloto.bat en Windows)
 ```
 
