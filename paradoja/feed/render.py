@@ -17,7 +17,7 @@ HEAD_Y, HEAD_W, HEAD_H = 215, 930, 170          # titular: centro y caja
 
 PEMDAS_HEADS = ("¡La respuesta NO es {n}!", "¡Cuidado! La respuesta NO es {n}", "¿{n}? ¡Esa NO es la respuesta!",
                 "¡{n} es incorrecto!")
-CUBE_SUBS = ("El 90% falla.", "Solo 1 de cada 10 acierta.", "Casi nadie lo logra.", "El 95% se equivoca.")
+CUBE_SUBS = ("Cuenta también los escondidos.", "Hay cubos que no se ven.", "Míralo con calma.", "Piensa en los que quedan tapados.")
 OPTION_HEADS = ("¡Cuidado con la trampa!", "No te dejes engañar", "Piénsalo bien antes de responder",
                 "Solo una es correcta")
 OPTION_COLORS = ((255, 64, 129), (0, 184, 212), (255, 171, 0), (76, 217, 100))
@@ -109,7 +109,7 @@ def draw_fraction(cv: Canvas, puz: P.Puzzle) -> None:
     pal = cv.pal
     cv.text("¿Qué fracción representa la región gris?", W / 2, HEAD_Y, HEAD_W, HEAD_H + 10, "black", 96, fill=YELLOW,
             max_lines=3)
-    cv.text("Escribe la fracción simplificada", W / 2, 396, 900, 52, "bold", 46, fill=WHITE, stroke_ratio=0.06)
+    cv.text("Da la fracción simplificada", W / 2, 396, 900, 52, "bold", 46, fill=WHITE, stroke_ratio=0.06)
     n, states = puz.data["n"], puz.data["states"]
     cy = (ART_TOP + 60 + 1130) / 2
     verts = _ngon(n, puz.data["rot"], W / 2, cy, 780, 640)

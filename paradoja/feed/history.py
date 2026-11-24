@@ -35,12 +35,14 @@ def recent_posts(history: list, n: int = 1000) -> set:
     return {e["post"] for e in history[-n:] if e.get("post")}
 
 
-def pick_mode(history: list, rng: random.Random, window: int = 16) -> str:
-    """Aleatorio inteligente: el tipo menos usado entre las ultimas imagenes (empates al azar)."""
+def pick_mode(history: list, rng: random.Random, window: int = 16, avoid=()) -> str:
+    """Aleatorio inteligente: el tipo menos usado entre las ultimas imagenes (empates al azar). Los tipos de `avoid`
+    (p. ej. los ya publicados hoy) solo se eligen si no queda ningun otro."""
     used = [e.get("mode") for e in history[-window:]]
-    counts = {m: used.count(m) for m in MODES}
+    pool = [m for m in MODES if m not in set(avoid)] or list(MODES)
+    counts = {m: used.count(m) for m in pool}
     low = min(counts.values())
-    return rng.choice([m for m in MODES if counts[m] == low])
+    return rng.choice([m for m in pool if counts[m] == low])
 
 
 def stats(history: list) -> list:

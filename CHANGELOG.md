@@ -3,6 +3,33 @@
 Todos los cambios relevantes se documentan aquí. El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto usa [versionado semántico](https://semver.org/lang/es/).
 
+## [1.8.0] - 2026-11-24
+
+Sin etiqueta de IA por defecto, textos sin cebos de interacción, separación mínima entre publicaciones y plantillas sin repetir.
+
+### Cambiado
+- **`IA_ETIQUETA=0` por defecto** (código, `.env` y `.env.example`). Con 0, `is_ai_generated` no se envía en ninguna fase de
+  la publicación (antes se mandaba `false` explícito); con 1 se envía `true` solo al finalizar el Reel. Se retiran de los `.txt`
+  y de la consola los avisos sobre la etiqueta de IA y no queda ninguna mención a la IA en copys, descripciones, texto
+  alternativo, hashtags ni archivos `_publicar.txt`.
+- **Textos sin cebos de interacción ni estadísticas inventadas.** Se reescriben ganchos, cierres hablados, fichas en pantalla,
+  títulos, descripciones, debate de acertijos, pies de publicación, comentario fijado, subtítulos de las imágenes y franja
+  inferior de las imágenes: se eliminan «el 99 % falla», «casi nadie acierta», «la mayoría se equivoca», «comenta...»,
+  «etiqueta a...», «compártelo...», «guarda este video» y los iconos 👇📤➕. Lo único que se pide, solo en el cierre del
+  video, es seguir la página. Los posts de las imágenes ya no llevan líneas de compartir ni seguir.
+- El «comentario fijado» pasa a ser una nota opcional que informa; ya no pide responder con un número.
+
+### Añadido
+- **`MIN_INTERVALO_MINUTOS`** (180 por defecto): separación mínima entre dos publicaciones de cualquier tipo, incluidas las
+  manuales (`--ahora` publica igualmente, con aviso). Se aplica al planificar, antes de generar (aplaza la franja) y justo antes
+  de publicar (espera con el archivo ya listo).
+- **Anti-repetición de plantillas**: el estado guarda la plantilla de cada publicación y el autopiloto pasa las de hoy a los
+  generadores con la nueva opción `--evitar` de `main.py` y `generador_imagenes.py`; un resultado repetido se descarta y se
+  vuelve a generar (3 intentos). `--estado` muestra las plantillas de hoy y el intervalo.
+- **`paradoja/copy_guard.py`**: patrones de IA y de cebos de interacción. Las pruebas revisan cientos de videos e imágenes (voz,
+  pantalla, título, descripción, hashtags, `_publicar.txt`, texto alternativo) y el autopiloto descarta y regenera un texto
+  que los incumpla antes de publicar.
+
 ## [1.7.1] - 2026-11-23
 
 ### Corregido

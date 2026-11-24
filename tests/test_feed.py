@@ -197,15 +197,17 @@ def test_text_stays_inside_the_side_margins(kit):
 
 # --------------------------------------------------------------------------- textos
 def test_copy_pools_are_clean_and_have_no_bait_wording():
-    pools = [*copy_feed.HOOKS.values(), *copy_feed.ASKS.values(), copy_feed.SHARE, copy_feed.FOLLOW]
+    from paradoja.copy_guard import find_issues
+    pools = [*copy_feed.HOOKS.values(), *copy_feed.ASKS.values(), *copy_feed.BODY.values()]
+    assert not hasattr(copy_feed, "SHARE") and not hasattr(copy_feed, "FOLLOW")      # ni compartir ni seguir en el texto
     for pool in pools:
         for tpl in pool:
             for text in expand_all(tpl.replace("<trap>", "X").replace("<eq>", "Y")):
                 assert not re.search(r"[{}|<>]", text) and "  " not in text
                 assert not re.search(r"\b(gana|ganar|premio|sorteo|etiqueta|comenta (s[ií]|no))\b", text, re.I), text
+                assert not find_issues(text), (text, find_issues(text))              # ni cebo ni menciones a la IA
     for pool in copy_feed.ASKS.values():
-        assert all("👇" in t for t in pool)
-    assert all(t.startswith("➕") for t in copy_feed.FOLLOW)
+        assert not any("👇" in t for t in pool)
 
 
 @pytest.mark.parametrize("kind", P.MODES)
@@ -215,7 +217,7 @@ def test_every_post_is_unique_and_well_formed(kind):
         p = P.generate(kind, seed)
         post = copy_feed.build_post(p, seed)
         paste = post["paste"]
-        assert "👇" in paste and "📤" in paste and "➕" in paste and not re.search(r"[{}|<>]|http", paste)
+        assert not re.search(r"[👇📤➕]", paste) and not re.search(r"[{}|<>]|http", paste)
         assert 3 <= len(post["tags"]) <= 5 and post["tags"][-1] == "#ParadojaInfinita" and len(set(post["tags"])) == len(post["tags"])
         if kind != "opciones":                                               # el gancho y la pregunta no regalan la respuesta
             assert not re.search(rf"(?<![\w−-]){re.escape(p.answer)}(?![\w/])", post["hook"] + post["ask"]), post["hook"]

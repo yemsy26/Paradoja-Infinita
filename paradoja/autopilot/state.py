@@ -181,7 +181,7 @@ class State:
                 slot["error"] = "el programa se cerró mientras publicaba"
                 day["publicaciones"].append({"tipo": kind, "franja": franja, "hora": slot.get("hora", ""),
                                              "archivo": slot.get("archivo", ""), "id": None, "estado": "ambiguo",
-                                             "error": slot["error"]})
+                                             "plantilla": slot.get("plantilla", ""), "error": slot["error"]})
                 LOG.warning("%s %s: el programa se cerró mientras publicaba %s. Puede haberse publicado: revisa tu página; "
                             "no se repite para no duplicar.", iso, key, slot.get("archivo") or "(sin archivo)")
                 changed = True
@@ -238,6 +238,27 @@ class State:
         found = ((self._get(day) or {}).get("franjas", {})).get(slot_key(kind, franja))
         return dict(found) if found else None
 
+    def templates(self, day, kind: str) -> list:
+        """Plantillas (formato del reto) publicadas ese dia para un tipo, por orden de hora: base de la anti-repeticion."""
+        pubs = sorted((p for p in self.publications(day) if p.get("tipo") == kind and p.get("estado") in PUBLISHED),
+                      key=lambda p: p.get("hora") or "")
+        return [p["plantilla"] for p in pubs if p.get("plantilla")]
+
+    def last_publication(self) -> datetime | None:
+        """Momento de la ultima publicacion de cualquier tipo (ok, ambigua o en curso): base del intervalo minimo."""
+        best = None
+        for iso, day in self.data["dias"].items():
+            stamps = [p.get("hora") for p in day["publicaciones"] if p.get("estado") in PUBLISHED]
+            stamps += [s.get("hora") for s in day["franjas"].values() if isinstance(s, dict) and s.get("estado") == "en_curso"]
+            for hora in stamps:
+                try:
+                    at = datetime.strptime(f"{iso} {hora}", "%Y-%m-%d %H:%M:%S")
+                except (TypeError, ValueError):
+                    continue
+                if best is None or at > best:
+                    best = at
+        return best
+
     def uploaded(self, archivo: str) -> bool:
         """¿Este archivo ya se subio alguna vez (en los dias guardados)?"""
         return bool(archivo) and any(p.get("archivo") == archivo and p.get("estado") in PUBLISHED
@@ -266,16 +287,19 @@ class State:
             return
         self._set_slot(day, kind, franja, {"estado": "omitida", "hora": self._now(), "motivo": motivo})
 
-    def begin(self, day, kind: str, franja: str, archivo: str) -> None:
+    def begin(self, day, kind: str, franja: str, archivo: str, plantilla: str = "") -> None:
         """Anotacion PREVIA a publicar: queda en disco antes de hablar con Meta (si el programa muere, no se repite)."""
-        self._set_slot(day, kind, franja, {"estado": "en_curso", "hora": self._now(), "archivo": archivo})
+        self._set_slot(day, kind, franja, {"estado": "en_curso", "hora": self._now(), "archivo": archivo,
+                                           "plantilla": plantilla})
 
     def finish(self, day, kind: str, franja: str, estado: str, archivo: str, post_id: str | None = None,
-               error: str | None = None) -> None:
+               error: str | None = None, plantilla: str = "") -> None:
         """Resultado de la publicacion: `ok` (publicada) o `ambiguo` (pudo salir). Cuenta para el limite diario."""
         hora = self._now()
-        pub = {"tipo": kind, "franja": franja, "hora": hora, "archivo": archivo, "id": post_id, "estado": estado}
-        slot = {"estado": "ejecutada" if estado == "ok" else "ambigua", "hora": hora, "archivo": archivo, "id": post_id}
+        pub = {"tipo": kind, "franja": franja, "hora": hora, "archivo": archivo, "id": post_id, "estado": estado,
+               "plantilla": plantilla}
+        slot = {"estado": "ejecutada" if estado == "ok" else "ambigua", "hora": hora, "archivo": archivo, "id": post_id,
+                "plantilla": plantilla}
         if error:
             pub["error"] = slot["error"] = error[:300]
         with self.batch():

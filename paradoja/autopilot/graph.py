@@ -209,7 +209,9 @@ class GraphClient:
         url = start.get("upload_url") or f"https://rupload.facebook.com/video-upload/{self.version}/{video_id}"
         self._upload(url, video_id, path)
         data = {"upload_phase": "finish", "video_id": video_id, "video_state": "PUBLISHED", "description": description,
-                "is_ai_generated": "true" if ai_generated else "false", "access_token": self.token}
+                "access_token": self.token}
+        if ai_generated:                                  # sin etiqueta de IA el parametro NO se envia (ni como «false»)
+            data["is_ai_generated"] = "true"
         if title:
             data["title"] = title
         done = self._call("POST", f"{self.base}/{self.page_id}/video_reels", "finalizar", idempotent=False, data=data,

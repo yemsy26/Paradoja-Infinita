@@ -86,8 +86,9 @@ class Config:
     jitter_max: int = 15
     max_photos: int = 1               # limite diario de imagenes (MAX_FOTOS_DIA), independiente del de videos
     max_videos: int = 1               # limite diario de Reels (MAX_VIDEOS_DIA)
-    ai_label: bool = True             # marca los Reels como contenido generado/editado con IA (la voz es sintetica)
+    ai_label: bool = False            # IA_ETIQUETA=1 envia is_ai_generated=true al publicar un Reel; con 0 no se envia nada
     dry_run: bool = False
+    min_gap_minutes: int = 180        # separacion minima entre dos publicaciones cualesquiera (MIN_INTERVALO_MINUTOS; 0 = sin limite)
     tolerance_hours: float = 3.0      # si el PC estuvo apagado/dormido mas que esto, esa tarea del dia se omite
     retries: int = 2                  # reintentos de PUBLICACION (no se vuelve a renderizar)
     retry_minutes: int = 20
@@ -164,7 +165,8 @@ class Config:
             photo_times=photo_times, video_times=video_times,
             max_photos=limit("MAX_FOTOS_DIA", len(photo_times)), max_videos=limit("MAX_VIDEOS_DIA", len(video_times)),
             jitter_min=num("JITTER_MIN", 1), jitter_max=num("JITTER_MAX", 15),
-            ai_label=_bool(env.get("IA_ETIQUETA"), True), dry_run=_bool(env.get("DRY_RUN"), False),
+            ai_label=_bool(env.get("IA_ETIQUETA"), False), dry_run=_bool(env.get("DRY_RUN"), False),
+            min_gap_minutes=num("MIN_INTERVALO_MINUTOS", 180),
             tolerance_hours=num("TOLERANCIA_HORAS", 3.0, float), retries=num("REINTENTOS", 2),
             retry_minutes=num("REINTENTO_MIN", 20), gen_timeout_min=num("TIMEOUT_GENERAR_MIN", 25),
             image_out=path("SALIDA_IMAGENES", root / "output_imagenes"), video_out=path("SALIDA_VIDEOS", root / "output"),
@@ -187,6 +189,8 @@ class Config:
         for name, value in (("MAX_FOTOS_DIA", self.max_photos), ("MAX_VIDEOS_DIA", self.max_videos)):
             if not (0 <= value <= 30):
                 out.append(f"{name}={value} debe estar entre 0 y 30 (Meta limita los Reels publicados por API a 30 cada 24 h).")
+        if not (0 <= self.min_gap_minutes <= 1440):
+            out.append(f"MIN_INTERVALO_MINUTOS={self.min_gap_minutes} debe estar entre 0 y 1440 (0 = sin separación mínima).")
         if not any(self.limit(k) for k in ("foto", "video")):
             out.append("No hay ninguna franja activa: pon horas en HORARIOS_FOTOS o HORARIOS_VIDEOS y un límite mayor que 0.")
         if not re.fullmatch(r"v\d+\.\d+", self.version):
@@ -197,6 +201,6 @@ class Config:
 ENV_KEYS = frozenset({
     "PAGE_ID", "PAGE_ACCESS_TOKEN", "GRAPH_VERSION", "HORARIOS_FOTOS", "HORARIOS_VIDEOS", "MAX_FOTOS_DIA", "MAX_VIDEOS_DIA",
     "FOTO_HORA", "VIDEO_HORA", "MAX_POSTS_DIA", "JITTER_MIN", "JITTER_MAX",
-    "IA_ETIQUETA", "DRY_RUN", "TOLERANCIA_HORAS", "REINTENTOS", "REINTENTO_MIN", "TIMEOUT_GENERAR_MIN", "SALIDA_IMAGENES",
+    "IA_ETIQUETA", "DRY_RUN", "TOLERANCIA_HORAS", "MIN_INTERVALO_MINUTOS", "REINTENTOS", "REINTENTO_MIN", "TIMEOUT_GENERAR_MIN", "SALIDA_IMAGENES",
     "SALIDA_VIDEOS", "LOG_ARCHIVO", "ESTADO_ARCHIVO",
 })

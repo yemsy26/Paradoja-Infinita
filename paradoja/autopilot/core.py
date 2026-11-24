@@ -15,6 +15,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from . import media
+from ..copy_guard import first_issue
 from .envfile import Config, redact
 from .graph import GraphClient, GraphError
 from .state import CONSUMED, MAX_ATTEMPTS, PLURAL, PUBLISHED, State, cover_note
@@ -127,10 +128,40 @@ class Autopilot:
         self.planned_day: date | None = None
 
     # ------------------------------------------------------------------ generar
-    def generate(self, kind: str) -> media.Artifact:
+    GEN_TRIES = 3                                       # intentos para obtener un texto limpio y una plantilla distinta
+
+    def _avoid(self, kind: str, day: date) -> tuple:
+        """Plantillas ya publicadas hoy de este tipo: no se repiten mientras quede alguna otra (si ya se usaron todas, solo se
+        evita la ultima)."""
+        used = self.state.templates(day, kind)
+        if not used:
+            return ()
+        fresh = [t for t in media.TEMPLATES[kind] if t not in used]
+        return tuple(dict.fromkeys(used)) if fresh else (used[-1],)
+
+    def generate(self, kind: str, day: date | None = None) -> media.Artifact:
+        """Lanza el generador evitando las plantillas de hoy y descarta (y vuelve a generar) un resultado cuyo texto incumpla la
+        politica (IA o cebos de interaccion, ver `copy_guard.py`) o que repita plantilla."""
+        avoid, issue = self._avoid(kind, day or self.now().date()), None
+        for attempt in range(1, self.GEN_TRIES + 1):
+            art = self._generate_once(kind, avoid)
+            issue = first_issue([art.copy, art.alt or ""])
+            if issue:
+                LOG.warning("%s descartado (intento %d/%d): el texto incumple la política (%s).", art.media.name, attempt,
+                            self.GEN_TRIES, issue)
+                continue
+            if art.template and art.template in avoid:
+                LOG.warning("%s repite la plantilla «%s» de hoy (intento %d/%d).", art.media.name, art.template, attempt,
+                            self.GEN_TRIES)
+                if attempt < self.GEN_TRIES:
+                    continue
+            return art
+        raise media.GenerationError(f"el texto generado incumple la política de texto: {issue}")
+
+    def _generate_once(self, kind: str, avoid: tuple = ()) -> media.Artifact:
         cfg = self.cfg
-        cmd, out_dir = ((media.image_command(cfg), cfg.image_out) if kind == "foto"
-                        else (media.video_command(cfg), cfg.video_out))
+        cmd, out_dir = ((media.image_command(cfg, avoid=avoid), cfg.image_out) if kind == "foto"
+                        else (media.video_command(cfg, avoid=avoid), cfg.video_out))
         missing = media.missing_modules(cmd[0], media.REQUIRED_MODULES[kind], self.runner)
         if missing:                                     # p. ej. lanzado desde conda: falta moderngl para los Reels
             raise media.GenerationError(
@@ -169,8 +200,15 @@ class Autopilot:
         if self.state.uploaded(name):
             LOG.error("%s: %s ya se subió antes; no se vuelve a publicar.", KINDS[kind], name)
             return Outcome(kind, "error", "ese archivo ya se subió antes", **base)
+        if not slot.startswith("manual-"):
+            wait = self._gap_wait()
+            if wait > 0:                                  # otra publicacion salio hace poco: se espera con el archivo ya listo
+                LOG.info("%s %s: la última publicación fue hace menos de %d min; se publicará en %d min.", KINDS[kind].capitalize(),
+                         slot, cfg.min_gap_minutes, math.ceil(wait / 60))
+                return Outcome(kind, "retry", f"intervalo mínimo de {cfg.min_gap_minutes} min", attempt=attempt,
+                               retry_in=math.ceil(wait), **base)
         try:
-            self.state.begin(day, kind, slot, name)       # ANOTACION PREVIA: si el programa muere publicando, no se repite
+            self.state.begin(day, kind, slot, name, art.template)   # ANOTACION PREVIA: si el programa muere publicando, no se repite
         except OSError as e:
             LOG.error("No se pudo guardar el estado (%s): no se publica para no arriesgar un duplicado.", e)
             return Outcome(kind, "error", f"no se pudo guardar el estado: {e}", **base)
@@ -187,7 +225,8 @@ class Autopilot:
             if e.ambiguous:
                 LOG.warning("%s: resultado AMBIGUO (%s). Puede haberse publicado: revisa tu página; no se reintenta "
                             "para no duplicar.", KINDS[kind], e)
-                self._record("el resultado ambiguo", self.state.finish, day, kind, slot, "ambiguo", name, error=str(e))
+                self._record("el resultado ambiguo", self.state.finish, day, kind, slot, "ambiguo", name, error=str(e),
+                             plantilla=art.template)
                 return Outcome(kind, "ambiguous", str(e), attempt=attempt, **base)
             if e.retry and attempt <= cfg.retries:
                 LOG.warning("%s: fallo temporal de la API (%s). Reintento %d/%d en %d min.", KINDS[kind], e, attempt,
@@ -200,10 +239,10 @@ class Autopilot:
         except Exception as e:                          # inesperado a mitad de la publicacion: pudo salir -> no se repite
             LOG.exception("%s: error inesperado al publicar: %s", KINDS[kind], redact(e, cfg.token))
             self._record("el resultado ambiguo", self.state.finish, day, kind, slot, "ambiguo", name,
-                         error=redact(e, cfg.token))
+                         error=redact(e, cfg.token), plantilla=art.template)
             return Outcome(kind, "ambiguous", str(e), attempt=attempt, **base)
         LOG.info("PUBLICADO %s: %s (id %s)", KINDS[kind], name, post_id)
-        self._record("la publicación", self.state.finish, day, kind, slot, "ok", name, post_id)
+        self._record("la publicación", self.state.finish, day, kind, slot, "ok", name, post_id, plantilla=art.template)
         return Outcome(kind, "ok", name, post_id=post_id, **base)
 
     # ------------------------------------------------------------------ una tarea completa
@@ -239,8 +278,19 @@ class Autopilot:
                        "hora pasada": "la hora ya pasó (se omite)", "otro día": "era de otro día"}[reason]
                 LOG.warning("%s %s: %s; se omite.", KINDS[kind].capitalize(), slot, msg)
                 return Outcome(kind, "skipped", reason, slot=slot, day=day)
+        wait = self._gap_wait()
+        if wait > 0 and not manual:                     # hace poco que salio otra publicacion: se aplaza esta franja
+            when = now + timedelta(seconds=wait)
+            self.state.schedule(day, kind, slot, when.strftime("%H:%M:%S"))
+            LOG.info("%s %s: la última publicación fue hace menos de %d min; se aplaza hasta las %s.", KINDS[kind].capitalize(),
+                     slot, self.cfg.min_gap_minutes, when.strftime("%H:%M"))
+            return Outcome(kind, "deferred", f"intervalo mínimo de {self.cfg.min_gap_minutes} min", slot=slot, day=day,
+                           retry_in=math.ceil(wait))
+        if wait > 0:
+            LOG.warning("La última publicación fue hace menos de %d min; publico igualmente porque es una orden manual.",
+                        self.cfg.min_gap_minutes)
         try:
-            art = self.generate(kind)
+            art = self.generate(kind, day)
         except Exception as e:                          # render o generador caidos: se registra y se sigue vivo
             LOG.error("No se pudo generar %s: %s", KINDS[kind], redact(e, self.cfg.token))
             if not self.cfg.dry_run and not manual:
@@ -255,6 +305,37 @@ class Autopilot:
             self.sleep(out.retry_in)
             out = self.publish(out.artifact, out.slot, out.day, out.attempt)
         return out
+
+    # ------------------------------------------------------------------ intervalo minimo entre publicaciones
+    def _gap_wait(self) -> float:
+        """Segundos que faltan para que se cumpla `MIN_INTERVALO_MINUTOS` desde la ultima publicacion (0 = ya se puede)."""
+        gap = self.cfg.min_gap_minutes * 60
+        last = self.state.last_publication() if gap else None
+        if last is None:
+            return 0.0
+        return max(0.0, (last + timedelta(seconds=gap) - self.now()).total_seconds())
+
+    def _space(self, planned: list, day: date) -> tuple:
+        """Separa las franjas planificadas al menos `MIN_INTERVALO_MINUTOS` entre si y de la ultima publicacion, retrasando
+        las que haga falta. -> (franjas, omitidas); se omite la que quedaria fuera de su tolerancia o del dia."""
+        gap = timedelta(minutes=self.cfg.min_gap_minutes)
+        if not gap:
+            return planned, []
+        last = self.state.last_publication()
+        earliest = last + gap if last else None
+        kept, dropped = [], []
+        for p in sorted(planned, key=lambda x: x.when):
+            if earliest and p.when < earliest:
+                p.when = earliest
+            h, m = map(int, p.slot.split(":"))
+            late = p.when - datetime.combine(day, dtime(h, m))
+            if p.when.date() != day or late > timedelta(hours=self.cfg.tolerance_hours):
+                dropped.append((p.kind, p.slot, f"el intervalo mínimo de {self.cfg.min_gap_minutes} min la dejaría para las "
+                                                f"{p.when:%H:%M}, fuera de su margen"))
+                continue
+            kept.append(p)
+            earliest = p.when + gap
+        return kept, dropped
 
     # ------------------------------------------------------------------ plan del dia
     def _when(self, day: date, base: datetime, entry: dict, now: datetime) -> tuple:
@@ -321,12 +402,18 @@ class Autopilot:
                         remaining -= 1
                         when, catchup = self._when(day, base, entry, now)
                         planned.append(Planned(kind, franja, when, catchup))
-                        if persist:
-                            st.schedule(day, kind, franja, when.strftime("%H:%M:%S"))
                         continue
                     omitted.append((kind, franja, motivo))
                     if persist:
                         st.omit(day, kind, franja, motivo)
+            planned, dropped = self._space(planned, day)              # intervalo minimo entre publicaciones
+            for kind, franja, motivo in dropped:
+                omitted.append((kind, franja, motivo))
+                if persist:
+                    st.omit(day, kind, franja, motivo)
+            for p in planned:
+                if persist:
+                    st.schedule(day, p.kind, p.slot, p.when.strftime("%H:%M:%S"))
         planned.sort(key=lambda p: p.when)
         return planned, omitted
 
@@ -365,6 +452,19 @@ class Autopilot:
                              f"id {p.get('id') or '-'}{flag}")
         else:
             lines.append("  Todavía no se ha publicado nada hoy.")
+        used = {k: st.templates(day, k) for k in KINDS}
+        if any(used.values()):
+            lines.append("  Plantillas de hoy (no se repiten seguidas): "
+                         + " | ".join(f"{PLURAL[k]} {', '.join(v) or '-'}" for k, v in used.items()))
+        last, now = st.last_publication(), self.now()
+        if cfg.min_gap_minutes and last:
+            def hm(t):
+                return f"{t:%H:%M:%S}" if t.date() == now.date() else f"{t:%d/%m %H:%M:%S}"
+            ready = last + timedelta(minutes=cfg.min_gap_minutes)
+            lines.append(f"  Intervalo mínimo entre publicaciones: {cfg.min_gap_minutes} min (la última fue a las {hm(last)}; "
+                         + ("ya puede publicarse)" if ready <= now else f"la siguiente, desde las {hm(ready)})"))
+        elif cfg.min_gap_minutes:
+            lines.append(f"  Intervalo mínimo entre publicaciones: {cfg.min_gap_minutes} min")
         for kind in KINDS:
             if cfg.limit(kind):
                 covered = self._covered(day, kind)                   # (sin guardar: --estado es de solo lectura)
@@ -412,8 +512,12 @@ class Autopilot:
             return Outcome(args[0] if args and isinstance(args[0], str) else "?", "error", str(e))
 
     def _after(self, out: Outcome) -> None:
-        if out.status == "retry" and self.sched is not None:
+        if self.sched is None:
+            return
+        if out.status == "retry":
             self.sched.every(max(1, out.retry_in)).seconds.do(self._retry_job, out)
+        elif out.status == "deferred":
+            self.sched.every(max(1, out.retry_in)).seconds.do(self._run_slot, out.kind, out.slot, out.day)
 
     def _run_slot(self, kind: str, slot: str, day: date):
         self._after(self._guard(self.execute, kind, slot, day))

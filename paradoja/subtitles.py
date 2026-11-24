@@ -1,4 +1,4 @@
-"""Subtitulos ASS: grandes, al centro, palabra activa resaltada + HUD, texto de los retos y llamada a comentar."""
+"""Subtitulos ASS: grandes, al centro, palabra activa resaltada + HUD, texto de los retos y cierre."""
 import re
 import textwrap
 from pathlib import Path
@@ -94,16 +94,13 @@ def _wrap_big(text: str, width: int = 24, max_size: int = 72, max_height: int = 
     return r"\N".join(best[1]), best[2]
 
 
-def _outro(start: float, end: float, cx: int, hl: str, question: str, cta: str,
-           note: str = "COMENTA TU NOTA", share: str = "ENVÍASELO A QUIEN NO LO ACIERTE") -> list:
-    """Cierre: la llamada a seguir (la misma frase que se narra) en una ficha grande, nota y compartir escalonados."""
-    accent = r"\c&H" + hl + "&"
+def _outro(start: float, end: float, cx: int, hl: str, question: str, cta: str) -> list:
+    """Cierre: la llamada a seguir (la misma frase que se narra) en una ficha grande y la pregunta del reto debajo.
+    No pide comentar ni compartir (cebo de interaccion): solo pregunta."""
     cta_text, cta_size = _wrap_big(cta, 22, 76, 290)
     rows = ((0.0, "Title", "", BRAND, 330),
             (0.0, "Cap", r"\fs" + str(cta_size) + _chip_color(hl), cta_text, 560),
-            (0.5, "Cta", r"\fs54", question, 770),
-            (0.9, "Cta", r"\fs64" + accent, note, 850),
-            (1.5, "Cta", r"\fs40", share, 1110))
+            (0.5, "Cta", r"\fs64" + r"\c&H" + hl + "&", question, 790))
     return [_line(min(start + dt, end - 0.3), end, style, "{" + over + r"\fad(150,0)}" + text, (cx, y))
             for dt, style, over, text, y in rows]
 
@@ -134,7 +131,7 @@ def build_ass(path: Path, clips: list, tl: Timeline, spec: VideoSpec) -> Path:
                         "{" + r"\fs" + str(size) + _chip_color(hl) + r"\fad(0,150)}" + text, (cx, HOOK_Y)))
     if tl.is_loop:
         ev += _outro(spec.duration - sc.outro_len + 0.2, spec.duration - 0.1, cx, hl,
-                     "¿CUÁNTAS VECES LO REPETISTE?", sc.cta, "COMENTA EL NÚMERO", "ENVÍASELO A QUIEN NO PARE DE MIRAR")
+                     "¿CUÁNTAS VECES LO REPETISTE?", sc.cta)
     else:
         n = len(sc.acts)
         ev += _outro(tl.outro_start + 0.2, spec.duration - 0.1, cx, hl, f"¿CUÁNTOS DE {n} ACERTASTE?", sc.cta)

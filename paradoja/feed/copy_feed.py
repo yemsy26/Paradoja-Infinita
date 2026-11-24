@@ -1,7 +1,7 @@
 """Texto de publicacion de las imagenes del feed: se arma con fragmentos y plantillas por semilla (ver `spin.py`).
 
-El copy pide la respuesta en comentarios (una pregunta, que es lo permitido) y seguir la pagina; no promete premios ni pide
-reacciones a cambio de nada. Cada texto lleva una huella para no repetir nunca el mismo copy (ver `history.py`).
+El copy plantea el reto y cierra con una pregunta sobre el propio reto; no pide comentar, compartir, etiquetar ni seguir, ni
+promete premios, ni afirma nada sobre lo que hace «la mayoria» (ver `copy_guard.py`). Cada texto lleva una huella para no repetir nunca el mismo copy (ver `history.py`).
 """
 from __future__ import annotations
 
@@ -14,16 +14,16 @@ from . import puzzles as P
 
 HOOKS = {
     "pemdas": (
-        "😲 {Muchos responden|Mucha gente responde|Muchos calculan|Mucha gente calcula} <trap>... y se equivoca. ¿Y tú?",
+        "😲 ¿Es <trap>? {Piénsalo mejor|Revísalo con calma|Mira el orden de las operaciones}.",
         "🤯 {Cuidado|Ojo}: <trap> NO es la respuesta.",
         "🧮 {¿Sin calculadora?|¿A mano?|¿Solo con tu cabeza?} {A ver quién acierta|Demuéstralo|Inténtalo}.",
-        "🤔 {Muchos calculan|Muchos resuelven|Mucha gente calcula|Mucha gente resuelve} de izquierda a derecha... y {fallan|se equivocan}. ¿Y tú?",
+        "🤔 {El orden de las operaciones|La jerarquía de operaciones} {importa|cambia el resultado}: {¿cuánto da?|¿cuál es el resultado?}",
         "😅 {Parece fácil|Parece sencillo}, pero <trap> no es el resultado.",
     ),
     "cubos": (
         "🧊 {Cuenta bien|Mira con atención|Piensa antes de responder}: {hay cubos que no se ven|algunos cubos están escondidos}.",
-        "👀 {Solo los más atentos aciertan|Muy pocos aciertan|Casi nadie acierta} {cuántos cubos hay|el total de cubos}.",
-        "🤔 ¿Cuántos cubos hay {en total|de verdad}? {Muchos cuentan solo los que se ven|Mucha gente cuenta mal}.",
+        "👀 {Cuenta con calma|Fíjate bien|Mira desde otro ángulo}: ¿cuántos cubos hay {en total|de verdad}?",
+        "🤔 ¿Cuántos cubos hay {en total|de verdad}? {No te quedes solo con los que se ven|Cuenta también los escondidos}.",
         "🧠 {Un reto de ingenio|Un reto de lógica espacial}: ¿cuántos cubos hay {en total|contando los escondidos}?",
     ),
     "fracciones": (
@@ -35,7 +35,7 @@ HOOKS = {
     "opciones": (
         "📝 {Solo una opción es correcta|Una sola es la buena}... {y las otras están hechas para confundirte|¿cuál será?}",
         "🤨 {Piensa antes de elegir|No te precipites}: {hay trampa|las opciones se parecen mucho}.",
-        "🎯 {A, B, C o D: ¿cuál es la correcta?|¿Cuál eliges?} {Casi nadie acierta a la primera.|Cuidado con la trampa.|Fíjate bien en los detalles.}",
+        "🎯 {A, B, C o D: ¿cuál es la correcta?|¿Cuál eliges?} {Cuidado con la trampa.|Fíjate bien en los detalles.|Léelas con calma.}",
         "🧠 {Un reto de lógica|Una pregunta con truco}: {¿te atreves?|¿cuál es la correcta?}",
     ),
 }
@@ -44,21 +44,17 @@ BODY = {
     "cubos": ("¿Cuántos cubos hay en total? {Cuenta también los que no se ven.|No olvides los que están escondidos.|Piensa en los que quedan tapados.}",),
     "fracciones": ("¿Qué fracción representa la región gris? {Respóndela simplificada.|Escríbela en su forma más simple.}",),
 }
+# Cierre de la publicacion: una pregunta o una indicacion sobre el reto. Nunca pide comentar, compartir, etiquetar ni seguir.
 ASKS = {
-    "pemdas": ("👇 {Dime|Escribe} qué resultado te sale {sin calculadora|y cómo lo calculaste|antes de mirar los comentarios}.",
-               "👇 {Comenta tu respuesta|Escribe tu resultado} {sin hacer trampa|y cuéntame cómo lo pensaste}."),
-    "cubos": ("👇 Escribe cuántos cubos hay {en total|y cómo los contaste|antes de mirar los comentarios}.",
-              "👇 {Comenta tu número|Dime tu respuesta} {sin hacer trampa|y cuéntame cómo lo contaste}."),
-    "fracciones": ("👇 Escribe la fracción {simplificada|en su forma más simple|antes de mirar los comentarios}.",
-                   "👇 {Comenta tu respuesta|Dime qué fracción es} {sin hacer trampa|y cuéntame cómo la calculaste}."),
-    "opciones": ("👇 Elige {A, B, C o D|una letra} {y cuéntame por qué|sin mirar los comentarios|y no hagas trampa}.",
-                 "👇 {Comenta tu respuesta|Escribe tu letra} {antes de mirar los comentarios|y dime cómo lo pensaste}."),
+    "pemdas": ("{¿Qué resultado te sale?|¿Cuánto da?|¿Cuál es tu resultado?} {Sin calculadora, si puedes.|Piénsalo con calma.|Revisa el orden de las operaciones.}",
+               "{¿Lo resuelves a la primera?|¿Te sale a la primera?} {Sin calculadora.|Sin hacer trampa.}"),
+    "cubos": ("{¿Cuántos cubos cuentas?|¿Cuántos cubos hay?|¿Cuál es tu número?} {Piénsalo con calma.|Cuenta por capas.|Incluye los que quedan tapados.}",
+              "{¿Los cuentas todos?|¿Cuentas también los escondidos?} {Sin hacer trampa.|Con calma.}"),
+    "fracciones": ("{¿Qué fracción es?|¿Cuál es la fracción?} {Simplifícala.|Dala en su forma más simple.|Piénsalo con calma.}",
+                   "{¿Lo ves a la primera?|¿Te sale simplificada?} {Sin hacer trampa.|Con calma.}"),
+    "opciones": ("{¿Cuál eliges?|¿Qué letra elegirías?|¿Cuál es la correcta?} {Piénsalo con calma.|Fíjate en los detalles.|Descarta las que no encajan.}",
+                 "{¿A, B, C o D?|¿Cuál de las cuatro?} {Sin mirar la solución.|Con calma y sin trampa.}"),
 }
-SHARE = ("📤 {Mándaselo a quien crea que lo sabe.|Reta a un amigo: envíale esta imagen.|Compártelo con alguien a quien le "
-         "encanten los retos.|Envíaselo a ese amigo que presume de listo.|Guárdalo y reta a alguien de tu familia.}",)
-FOLLOW = ("➕ {Sigue la página|Sígueme|Sigue esta página} para {más retos como este|el reto de mañana|no perderte el "
-          "siguiente}.", "➕ {Un reto nuevo cada día|Retos nuevos todos los días}: {sígueme|sigue la página} {y entrena tu "
-          "mente|para no perdértelos}.")
 TAG_POOLS = {
     "pemdas": ("#Matematicas", "#RetoMatematico", "#CalculoMental", "#AcertijosMatematicos", "#JuegosMentales", "#TestDeLogica"),
     "cubos": ("#RetoVisual", "#CuentaLosCubos", "#LogicaEspacial", "#JuegosMentales", "#TestDeIngenio", "#Acertijos"),
@@ -88,7 +84,7 @@ def _compose(puz: P.Puzzle, rng: random.Random) -> dict:
     if kind == "opciones" and puz.detail in SUB_TAGS and SUB_TAGS[puz.detail] not in tags:
         tags[-1] = SUB_TAGS[puz.detail]
     tags = list(dict.fromkeys(tags))[:4] + [BRAND_TAG]
-    paste = f"{hook}\n\n{body}\n\n{ask}\n\n{pick(rng, SHARE)}\n{pick(rng, FOLLOW)}\n\n{' '.join(tags)}"
+    paste = f"{hook}\n\n{body}\n\n{ask}\n\n{' '.join(tags)}"
     reveal = f"✅ Respuesta: {puz.answer}\n{puz.explanation}"
     return dict(paste=paste, hook=hook, body=body, ask=ask, tags=tags, alt=puz.alt, reveal=reveal)
 

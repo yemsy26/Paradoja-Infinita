@@ -54,10 +54,10 @@ def test_hook_pool_is_large_clean_and_has_the_requested_examples():
         for h in _all(pool, n=5):
             assert h.strip() and not re.search(r"[{}|<>]", h) and "  " not in h and ".." not in h.replace("...", "")
             assert 1 <= len(h.split()) <= 12 and len(h) <= 80, h
-    for example in ("El 99% de las personas falla este nivel.", "Solo si tienes un IQ alto podrás resolver esto.",
-                    "No parpadees o perderás el juego.", "Te apuesto a que no puedes encontrar el error.",
-                    "Pon a prueba tu cerebro en 10 segundos."):
-        assert example in hooks
+    assert "Pon a prueba tu cerebro en 10 segundos." in hooks
+    for banned in ("El 99% de las personas falla este nivel.", "Solo si tienes un IQ alto podrás resolver esto.",
+                   "Casi nadie pasa este reto."):                  # ganchos de cebo que Meta penaliza: ya no existen
+        assert banned not in hooks
 
 
 def test_hook_lead_is_bounded_and_grows_with_length():
@@ -96,9 +96,12 @@ def test_cta_pool_always_asks_to_follow_and_has_the_requested_examples():
         for c in _all(pool):
             assert FOLLOW.search(c), c                                 # todas exigen seguir la cuenta
             assert not re.search(r"[{}|<>]|http", c) and len(c.split()) <= 14 and len(c) <= 80, c
-    for example in ("¿Perdiste? Sígueme para tu revancha mañana.", "Si lo lograste, sígueme y comenta tu tiempo.",
-                    "Únete al 1% que gana. Sígueme para más retos.", "¿Te engañó tu mente? Sígueme para el nivel 2."):
+    for example in ("¿Perdiste? Sígueme para tu revancha mañana.", "¿Te engañó tu mente? Sígueme para el nivel 2."):
         assert example in ctas
+    for banned in ("Si lo lograste, sígueme y comenta tu tiempo.", "Únete al 1% que gana. Sígueme para más retos."):
+        assert banned not in ctas                                 # comentar y las cifras inventadas ya no se piden
+    from paradoja.copy_guard import find_issues
+    assert all(not find_issues(c, allow_follow=True) for c in ctas)
 
 
 @pytest.mark.parametrize("mode", MODES)

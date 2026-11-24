@@ -52,17 +52,17 @@ guion narrado y audio, de modo que cada video es estructuralmente distinto y a l
 - **Texto único por video (text spinning)**: gancho de apertura, llamada a seguir del cierre, debate en acertijos y
   cálculo, título, descripción y hashtags se arman con fragmentos elegidos por la semilla (ver
   [Textos únicos](#textos-únicos-text-spinning)); el texto de publicación nunca se repite.
-- **Metadata lista para publicar**: cada video genera un `.txt` con título, descripción (con llamada a comentar y a
-  compartir), comentario fijado sugerido, hashtags y las respuestas del reto.
+- **Metadata lista para publicar**: cada video genera un `.txt` con título, descripción (una pregunta sobre el reto, sin
+  pedir comentar, compartir ni etiquetar), nota sugerida para fijar, hashtags y las respuestas del reto.
 - Duración fija de **63 s** (rango válido 61,5–65 s) para cumplir el mínimo de monetización In-Stream.
 
 ## Retos disponibles
 
 Un video de **tipo único** repite el mismo reto (4-7 veces, con dificultad creciente). El **video mixto** combina de 5 a
 7 retos *distintos*. Todos empiezan con el reto en el segundo 0, revelan la respuesta al final de cada prueba y cierran
-con una llamada a comentar la nota, compartir y seguir la cuenta.
+con la pregunta «¿cuántos acertaste?» y una invitación a seguir la cuenta (sin pedir comentar ni compartir).
 
-| Categoría | Reto | Mecánica | Qué se pide en comentarios |
+| Categoría | Reto | Mecánica | Pregunta de la descripción |
 |---|---|---|---|
 | Visual | **Anomalía** | Rejilla de figuras donde una difiere (color, tamaño, brillo, punto o giro) | ¿En qué segundo lo notaste? |
 | Visual | **Ilusión óptica** | 10 ilusiones: Ouchi, café wall, Ebbinghaus, rejilla centelleante, espiral, muaré, Hermann, Müller-Lyer, Kanizsa y Zöllner; se «desenmascaran» | ¿Cuántas te engañaron? |
@@ -93,9 +93,9 @@ El sistema está pensado para publicar varias veces al día sin repetir fórmula
   (añade los tuyos con el formato `{"q": "pregunta", "a": "respuesta"}`; ponlos al final para no alterar el historial) y
   de 11 familias con números generados. Las secuencias salen de 17 familias con parámetros amplios (el nivel difícil ya
   no son 24 series, sino miles).
-- **Texto de publicación rotativo:** título, frase de búsqueda, llamada a comentar, a compartir y a seguir se combinan
-  de forma distinta en cada video (más de 40 combinaciones por tipo), siguiendo la guía de Meta: sin enlaces, pocas
-  mayúsculas y como máximo cinco hashtags.
+- **Texto de publicación rotativo:** título, frase de búsqueda, pregunta y línea final se combinan de forma distinta en
+  cada video (más de 40 combinaciones por tipo), siguiendo la guía de Meta: sin enlaces, pocas mayúsculas, como máximo
+  cinco hashtags y sin cebos de interacción (ver «Política de texto»).
 - **Aleatorio inteligente:** para cada video se evalúan 24 semillas candidatas y se elige la más distinta de lo publicado
   recientemente (según `output/historial.json`): evita repetir el mismo reto, formato, paleta, figura, acertijo o título.
 - **Video mixto:** cambia de reto cada 8-12 s, lo que mantiene la atención y multiplica las combinaciones.
@@ -213,19 +213,20 @@ etiquetas), y al terminar cada video ese texto queda **copiado en el portapapele
 TIPO DE VIDEO:       Reto de Anomalía
 VARIABLES:           semilla, paleta, figura, respuestas de cada prueba (control interno)
 TÍTULO SUGERIDO:     ...
-DESCRIPCIÓN (COPY):  ... (con llamada a comentar adaptada al modo + compartir + seguir)
-COMENTARIO FIJADO:   pregunta sencilla de una cifra para pegar y fijar
+DESCRIPCIÓN (COPY):  ... (una pregunta sobre el reto del modo + una línea final neutra)
+NOTA PARA FIJAR:     opcional; informa (dónde está la solución), no pide nada
 PORTADA:             <slug>_portada.jpg (miniatura con el gancho a pantalla completa)
-ANTES DE PUBLICAR:   aviso de la etiqueta de IA (ver abajo)
 HASHTAGS:            3-5 etiquetas del modo, siempre #ParadojaInfinita
 ```
 
-**Etiqueta de IA.** Meta exige usar su herramienta de divulgación en el contenido orgánico con audio de aspecto
-realista creado digitalmente, y puede penalizar si no se declara ([anuncio de Meta](https://about.fb.com/news/2026/02/meta-prepares-for-2026-us-midterms/)).
-La narración de estos videos es una voz neuronal sintética, así que lo prudente es activar la «Etiqueta de IA» al
-publicar. Es una recomendación, no asesoría legal: comprueba la política vigente.
+**Etiqueta de IA.** Ni los textos ni los archivos que genera el proyecto mencionan la IA, y el autopiloto **no envía la
+etiqueta por defecto** (`IA_ETIQUETA=0`: el parámetro `is_ai_generated` no se manda en ninguna fase). Con `IA_ETIQUETA=1`
+se envía `is_ai_generated=true` al finalizar cada Reel. Ten en cuenta que Meta pide declarar el contenido de aspecto
+realista creado o alterado digitalmente ([anuncio de Meta](https://about.fb.com/news/2026/02/meta-prepares-for-2026-us-midterms/))
+y la narración de estos videos es una voz neuronal sintética: es una decisión y una responsabilidad tuyas; comprueba la
+política vigente.
 
-Título, descripción, pies de compartir/seguir, comentario fijado y hashtags se arman con fragmentos (ver más abajo) y
+Título, descripción, línea final, nota para fijar y hashtags se arman con fragmentos (ver más abajo) y
 cada video guarda en `output/historial.json` la huella del texto: si saliera idéntico a uno reciente, se recompone. El
 historial también alimenta la elección inteligente y la opción de estadísticas.
 
@@ -244,7 +245,7 @@ textos distintos. Una plantilla admite grupos `{opción A|opción B}` (anidables
 | **Gancho de apertura** (2,5–4,4 s) | Se narra desde 0,15 s y se muestra en una ficha grande mientras el primer reto está quieto y visible. Genérico + por categoría del reto | 600+ |
 | **Llamada a seguir** (últimos 4–5 s) | Se narra y se quema en pantalla; todas piden seguir la cuenta | 290+ (65+ en el bucle) |
 | **Debate** (acertijos y cálculo) | En la revelación: «Muchos dicen X, pero es Y. ¿Tú qué opinas?» y una ficha con la respuesta común | decenas por reto |
-| **Título, descripción, pies, comentario fijado, hashtags** | `<nombre>.txt` y `<nombre>_publicar.txt` | miles de combinaciones |
+| **Título, descripción, línea final, nota para fijar, hashtags** | `<nombre>.txt` y `<nombre>_publicar.txt` | miles de combinaciones |
 
 Reglas del debate: solo se afirma lo cierto. El enfrentamiento «X vs Y» se usa cuando existe una **trampa real** (la
 respuesta equivocada típica: en los acertijos con números generados y en el cálculo es exacta; en `acertijos.json` se
@@ -256,8 +257,16 @@ expandidas están limpias, caben en pantalla y en su hueco de voz, y que todas l
 > **Sobre las políticas de Meta.** Variar el texto reduce la repetición, pero no basta por sí solo para cumplir las
 > políticas de contenido original y spam: si publicas decenas de videos casi idénticos al día, Meta puede tratarlos como
 > contenido repetitivo aunque cada texto sea distinto. Mantén un ritmo de publicación razonable, evita enlaces y
-> exceso de mayúsculas en la descripción (el generador ya lo respeta), usa como máximo 5 hashtags y activa la
-> «Etiqueta de IA». Frases como «el 99 % falla» son ganchos retóricos, no estadísticas medidas.
+> exceso de mayúsculas en la descripción (el generador ya lo respeta) y usa como máximo 5 hashtags.
+
+### Política de texto (sin cebos de interacción)
+
+Meta reduce el alcance de lo que *pide* reacciones («comenta SÍ si...», «etiqueta a...», «compártelo...», «guarda este
+video») y de los ganchos con estadísticas inventadas o afirmaciones sobre «la mayoría» («el 99 % falla», «casi nadie
+acierta»). Por eso los ganchos, cierres, títulos, descripciones y fichas en pantalla son directos y centrados en resolver
+el reto (preguntas, pistas, «mira con calma»), y lo único que se pide, solo en el cierre del video, es seguir la página.
+`paradoja/copy_guard.py` reúne esos patrones (y las menciones a la IA): las pruebas revisan cientos de videos e imágenes
+con él y el autopiloto descarta y vuelve a generar cualquier resultado que lo incumpla antes de publicarlo.
 
 ## Imágenes para el feed
 
@@ -295,9 +304,9 @@ sola correcta.
 opción 6). Sin ellas usa Arial Black / Segoe UI Black / Impact del sistema. Solo se aceptan fuentes con los signos
 × ÷ − ¿ ¡ ñ y las tildes.
 
-> El copy pide la respuesta con una pregunta y pide seguir la página; no promete premios ni pide etiquetar o reaccionar a
-> cambio de algo. Meta trata «comenta SÍ/NO», «etiqueta a 3 amigos» o «comparte para ganar» como cebo de interacción y
-> reduce el alcance. Frases como «el 90 % falla» son ganchos retóricos, no estadísticas medidas.
+> El copy plantea el reto y cierra con una pregunta sobre el propio reto; no pide comentar, compartir, etiquetar ni
+> seguir, no promete premios ni afirma nada sobre lo que hace «la mayoría». Meta trata «comenta SÍ/NO», «etiqueta a 3
+> amigos» o «comparte para ganar» como cebo de interacción y reduce el alcance.
 
 ## Autopiloto: publicar solo
 

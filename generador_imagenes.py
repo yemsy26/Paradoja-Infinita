@@ -60,8 +60,9 @@ def generate(mode: str, seed: int, args, kit: FontKit) -> None:
 
 def run(mode: str, count: int, seed: int | None, args, kit: FontKit) -> int:
     rng = random.Random(seed)
+    avoid = tuple(m for m in (getattr(args, "evitar", "") or "").split(",") if m)
     for i in range(count):
-        chosen = choose_mode(mode, args.out, rng)
+        chosen = choose_mode(mode, args.out, rng, avoid)
         s = seed + i if seed is not None else secrets.randbits(32)
         try:
             generate(chosen, s, args, kit)
@@ -128,6 +129,8 @@ def main() -> int:
     ap.add_argument("--formato", choices=["png", "jpg"], default="png")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help="carpeta de salida (por defecto output_imagenes)")
     ap.add_argument("--no-copy", action="store_true", help="no copiar el texto de publicacion al portapapeles")
+    ap.add_argument("--evitar", default="", metavar="TIPO,TIPO",
+                    help="con --modo aleatorio, tipos que no se repiten si hay otros (el autopiloto pasa los ya publicados hoy)")
     args = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")

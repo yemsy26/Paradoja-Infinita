@@ -17,7 +17,7 @@ from ..config import BRAND
 W, H, SS = 1080, 1350, 2
 SIZE = (W * SS, H * SS)
 MARGIN = 54
-BAND_Y = (1165, 1315)           # franja inferior (llamada a comentar y seguir)
+BAND_Y = (1165, 1315)           # franja inferior (pregunta sobre el reto)
 ART_TOP, ART_BOTTOM = 400, 1140  # zona del dibujo central
 
 
@@ -230,8 +230,8 @@ class Canvas:
         self.put(lay)
 
     # ------------------------------------------------------------------ marco comun
-    def frame(self, cta="COMENTA TU RESPUESTA", sub="Y SÍGUENOS PARA MÁS RETOS") -> None:
-        """Marca arriba y franja inferior con la llamada a comentar y seguir."""
+    def frame(self, cta="¿CUÁL ES TU RESPUESTA?", sub="PIÉNSALO ANTES DE VER LA SOLUCIÓN") -> None:
+        """Marca arriba y franja inferior con una pregunta sobre el reto (sin pedir comentar, compartir ni seguir)."""
         font = self.kit.get("black", S(34))
         b = self._bbox(BRAND, font)
         pw = (b[2] - b[0]) / SS + 70

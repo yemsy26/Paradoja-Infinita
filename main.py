@@ -17,7 +17,7 @@ from paradoja.catalog import append_history, choose, entry_for, load_history, pi
 from paradoja.clipboard import copy_file_to_clipboard
 from paradoja.config import VideoSpec
 from paradoja.encoder import FfmpegEncoder, pick_codec
-from paradoja.metadata import AI_LABEL_NOTE, MODE_LABEL, video_slug, write_metadata
+from paradoja.metadata import MODE_LABEL, video_slug, write_metadata
 from paradoja.renderer import GpuRenderer
 from paradoja.scene import MODES, TYPES, build_scene
 from paradoja.script_es import build_script
@@ -102,8 +102,7 @@ def generate(mode: str, seed: int, args) -> int:
     print(f"Listo en {time.perf_counter() - t0:.1f}s -> {out}\n  Metadata -> {meta}"
           + (f"\n  Portada  -> {cover}" if cover.exists() else "")
           + f"\n  Publicar -> {post_file}"
-          + ("\n  El texto para publicar ya esta en el portapapeles: pegalo (Ctrl+V) en la publicacion." if copied else "")
-          + f"\n  Antes de publicar: {AI_LABEL_NOTE}")
+          + ("\n  El texto para publicar ya esta en el portapapeles: pegalo (Ctrl+V) en la publicacion." if copied else ""))
     return 0
 
 
@@ -112,7 +111,8 @@ def next_target(mode: str, seed, args) -> tuple:
     if seed is not None:
         return seed, pick_mode(mode, seed)
     if mode in ("random", "mix"):
-        return choose(mode, load_history(args.out), VideoSpec(duration=args.duration))
+        avoid = tuple(m for m in (getattr(args, "evitar", "") or "").split(",") if m)
+        return choose(mode, load_history(args.out), VideoSpec(duration=args.duration), avoid=avoid)
     return secrets.randbits(32), mode
 
 
@@ -194,6 +194,8 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=ROOT / "output")
     ap.add_argument("--keep-work", action="store_true", help="conserva audio/subtitulos/log intermedios")
     ap.add_argument("--no-copy", action="store_true", help="no copiar el texto de publicacion al portapapeles")
+    ap.add_argument("--evitar", default="", metavar="FORMATO,FORMATO",
+                    help="con --mode random, formatos que no se repiten si hay otros (el autopiloto pasa los ya publicados hoy)")
     args = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")

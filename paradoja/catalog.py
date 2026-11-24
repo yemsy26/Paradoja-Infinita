@@ -73,12 +73,23 @@ def novelty(sc: Scene, history: list) -> float:
     return score
 
 
-def choose(mode: str, history: list, spec: VideoSpec, tries: int = 24) -> tuple:
-    """Entre `tries` semillas candidatas elige la mas novedosa. -> (semilla, formato)."""
-    best, best_score = None, -1e9
-    for _ in range(tries):
+def choose(mode: str, history: list, spec: VideoSpec, tries: int = 24, avoid=()) -> tuple:
+    """Entre `tries` semillas candidatas elige la mas novedosa. -> (semilla, formato). Los formatos de `avoid` (p. ej. los ya
+    publicados hoy) se descartan al sortear las candidatas; solo si no hay ninguna otra posible se usan igualmente."""
+    avoid = set(avoid)
+    cands = []
+    for _ in range(tries * 60):                           # sortea candidatas que no repitan formato
         seed = secrets.randbits(32)
         m = pick_mode(mode, seed)
+        if m not in avoid:
+            cands.append((seed, m))
+            if len(cands) >= tries:
+                break
+    while not cands:                                      # todos los formatos posibles estaban evitados
+        seed = secrets.randbits(32)
+        cands = [(seed, pick_mode(mode, seed))]
+    best, best_score = None, -1e9
+    for seed, m in cands:
         score = novelty(build_scene(seed, m, spec), history) + random.random() * 0.3
         if score > best_score:
             best, best_score = (seed, m), score

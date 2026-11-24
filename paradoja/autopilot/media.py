@@ -28,6 +28,27 @@ class Artifact:
     copy: str                  # texto de publicacion (el de `_publicar.txt`)
     alt: str | None            # texto alternativo (solo imagenes)
     source: Path               # `_publicar.txt` de donde salio el copy
+    template: str = ""         # plantilla/formato del reto (p. ej. "cubos", "simon"): sirve para no repetirla el mismo dia
+
+
+# --------------------------------------------------------------------------- plantillas (anti-repeticion)
+# Formatos que sabe generar cada tipo. Se duplican aqui a proposito: el autopiloto puede ejecutarse con un Python sin NumPy y
+# no importa `paradoja.scene`; una prueba comprueba que coinciden con `scene.MODES`, `metadata.MODE_SLUG` y `feed.puzzles.MODES`.
+IMAGE_TEMPLATES = ("pemdas", "cubos", "fracciones", "opciones")
+VIDEO_SLUG_TO_MODE = {
+    "anomalia": "anomaly", "ilusion": "illusion", "ishihara": "ishihara", "ojomagico": "magiceye", "contraste": "contrast",
+    "sincronia": "sync", "enjambre": "swarm", "conteo": "count", "cambio": "flicker", "memoria": "memory", "stroop": "stroop",
+    "calculo": "math", "secuencia": "sequence", "acertijo": "riddle", "bucle": "loop", "mixto": "mix", "vasos": "cups",
+    "simon": "simon", "numerodistinto": "digits",
+}
+VIDEO_TEMPLATES = tuple(VIDEO_SLUG_TO_MODE.values())
+TEMPLATES = {"foto": IMAGE_TEMPLATES, "video": VIDEO_TEMPLATES}
+
+
+def template_of(path: Path, kind: str) -> str:
+    """Plantilla de un archivo generado, a partir de su nombre (`cubos_...png`, `acertijo_preguntas_...mp4`). "" si no se sabe."""
+    first = Path(path).stem.split("_", 1)[0]
+    return first if kind == "foto" and first in IMAGE_TEMPLATES else VIDEO_SLUG_TO_MODE.get(first, "") if kind == "video" else ""
 
 
 # --------------------------------------------------------------------------- entorno de los generadores
@@ -81,16 +102,19 @@ def ensure_ffmpeg_on_path() -> bool:
 
 
 # --------------------------------------------------------------------------- comandos y ejecucion
-def image_command(cfg: Config, python: str | None = None) -> list:
-    """generador_imagenes.py en modo aleatorio inteligente: una imagen, sin tocar el portapapeles."""
-    return [python or project_python(), str(ROOT / "generador_imagenes.py"), "--modo", "aleatorio", "--count", "1",
-            "--no-copy", "--out", str(cfg.image_out)]
+def image_command(cfg: Config, python: str | None = None, avoid=()) -> list:
+    """generador_imagenes.py en modo aleatorio inteligente: una imagen, sin tocar el portapapeles. `avoid` = tipos que no
+    debe repetir (los ya publicados hoy)."""
+    cmd = [python or project_python(), str(ROOT / "generador_imagenes.py"), "--modo", "aleatorio", "--count", "1",
+           "--no-copy", "--out", str(cfg.image_out)]
+    return cmd + (["--evitar", ",".join(avoid)] if avoid else [])
 
 
-def video_command(cfg: Config, python: str | None = None) -> list:
-    """main.py en modo aleatorio inteligente: un video, sin tocar el portapapeles."""
-    return [python or project_python(), str(ROOT / "main.py"), "--mode", "random", "--count", "1", "--no-copy",
-            "--out", str(cfg.video_out)]
+def video_command(cfg: Config, python: str | None = None, avoid=()) -> list:
+    """main.py en modo aleatorio inteligente: un video, sin tocar el portapapeles. `avoid` = formatos que no debe repetir."""
+    cmd = [python or project_python(), str(ROOT / "main.py"), "--mode", "random", "--count", "1", "--no-copy",
+           "--out", str(cfg.video_out)]
+    return cmd + (["--evitar", ",".join(avoid)] if avoid else [])
 
 
 def run_generator(cmd: list, timeout_s: float, runner=subprocess.run, cwd: Path = ROOT) -> str:
@@ -147,7 +171,8 @@ def find_artifact(out_dir: Path, kind: str, since: float) -> Artifact:
         stem = txt.name[:-len(PUBLISH_SUFFIX)]
         media = next((txt.with_name(stem + e) for e in exts if txt.with_name(stem + e).exists()), None)
         if media:
-            return Artifact(kind, media, read_copy(txt), read_alt(txt.with_name(stem + ".txt")) if kind == "foto" else None, txt)
+            return Artifact(kind, media, read_copy(txt), read_alt(txt.with_name(stem + ".txt")) if kind == "foto" else None, txt,
+                            template_of(media, kind))
     raise GenerationError(f"no encuentro un archivo nuevo ({'/'.join(exts)} + {PUBLISH_SUFFIX}) en {out_dir}")
 
 

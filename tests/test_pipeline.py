@@ -1,4 +1,5 @@
 """Pruebas de la logica pura (sin GPU, sin FFmpeg y sin red): escena, actos, guion, metadata y catalogo."""
+import re
 from pathlib import Path
 
 import numpy as np
@@ -197,7 +198,7 @@ def test_slug_and_metadata_file(mode, tmp_path):
     assert title in text
     tags = text.split("HASHTAGS:")[1].split()
     assert 3 <= len(tags) <= 5 and "#ParadojaInfinita" in tags and all(t.startswith("#") for t in tags)
-    assert "👇" in text                                   # llamada a comentar
+    assert "👇" not in text and "ANTES DE PUBLICAR" not in text         # sin cebo de comentarios ni avisos de IA
 
 
 def test_metadata_avoids_recently_used_titles(tmp_path):
@@ -322,13 +323,15 @@ def test_screen_text_never_sits_under_the_app_header(mode):
     assert HUD_Y - 12 >= TOP_SAFE and CAPTION_Y > HUD_Y
 
 
-def test_outro_asks_for_score_share_and_follow(tmp_path):
+def test_outro_asks_the_question_and_follows_without_comment_or_share_bait(tmp_path):
     from paradoja.subtitles import build_ass
     sc, tl = _make("anomaly", 11)
     ass = build_ass(tmp_path / "s.ass", [], tl, SPEC).read_text("utf-8")
-    for needle in ("COMENTA TU NOTA", "ENVÍASELO A QUIEN NO LO ACIERTE", f"¿CUÁNTOS DE {len(sc.acts)} ACERTASTE?", "FINAL",
+    for needle in (f"¿CUÁNTOS DE {len(sc.acts)} ACERTASTE?", "FINAL",
                    sc.cta.upper().split()[0]):                 # la llamada a seguir (la que se narra) tambien se quema
         assert needle in ass
+    for banned in ("COMENTA", "ENVÍASELO", "COMPARTE", "ETIQUETA"):
+        assert banned not in ass
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -486,7 +489,7 @@ def test_magiceye_numbers_are_valid_two_digit_values(seed):
 
 
 def test_publish_block_is_clean_and_ready_to_paste(tmp_path):
-    from paradoja.metadata import AI_LABEL_NOTE, build_post
+    from paradoja.metadata import build_post
     for mode in ACT_MODES + ["loop"]:
         sc, tl = _make(mode, 77)
         post = build_post(sc, tl)
@@ -494,12 +497,12 @@ def test_publish_block_is_clean_and_ready_to_paste(tmp_path):
         assert "HASHTAGS" not in paste and "TÍTULO" not in paste and "http" not in paste       # sin etiquetas ni enlaces
         assert paste.startswith(post["title"]) and paste.endswith(" ".join(post["tags"]))
         assert 3 <= len(post["tags"]) <= 5 and post["tags"][-1] == "#ParadojaInfinita"             # Meta: maximo 5 hashtags
-        assert len(post["title"]) <= 110 and "📤" in paste and "➕" in paste
+        assert len(post["title"]) <= 110 and not re.search(r"[👇📤➕]", paste)               # sin iconos de cebo
     sc, tl = _make("riddle", 5)
     path, title, _h = write_metadata(tmp_path / "x.txt", sc, tl, "x.mp4")
     only = (tmp_path / "x_publicar.txt").read_text("utf-8-sig").strip()
     full = path.read_text("utf-8-sig")
-    assert only in full and full.index("COPIAR Y PEGAR") < full.index("TIPO DE VIDEO:") and AI_LABEL_NOTE in full
+    assert only in full and full.index("COPIAR Y PEGAR") < full.index("TIPO DE VIDEO:") and "ANTES DE PUBLICAR" not in full
     assert title == only.split("\n", 1)[0]
 
 

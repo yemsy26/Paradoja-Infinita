@@ -59,23 +59,22 @@ def adj_plural(adj: str) -> str:
 STROOP_COLORS = (("rojo", "2020FF"), ("verde", "30E050"), ("azul", "FF6A20"), ("amarillo", "00E6FF"),
                  ("naranja", "0080FF"), ("morado", "FF3399"), ("rosa", "9933FF"), ("celeste", "FFD500"))
 
-HOOK_SHORT = ("Casi nadie acierta.", "Solo el uno por ciento.", "Atento.", "¿Estás listo?", "Mira bien.")
+HOOK_SHORT = ("Tiene truco.", "Piénsalo bien.", "Atento.", "¿Estás listo?", "Mira bien.")
 MID = ("Mira bien.", "No parpadees.", "Concéntrate.", "Sin trampas.")
 REVEAL = ("Ahí estaba. ¿Lo viste?", "Ese era. ¿Acertaste?", "Mira dónde estaba. ¿Lo encontraste?")
 
-# cierre hablado (<= 7 palabras): nota + compartir. En pantalla: nota, compartir y seguir (ver subtitles.py)
-OUTRO = ("Comenta tu nota y compártelo con alguien.", "Dime tu nota. Compártelo con un amigo.",
-         "¿Cuántos acertaste? Comenta y compártelo.")
-LOOP_OUTRO = ("¿Cuántas veces lo repetiste? Coméntalo.", "Comenta cuántas veces lo viste.")
+# cierre hablado (<= 7 palabras): una pregunta sobre el propio reto, sin pedir comentar ni compartir (ver subtitles.py)
+OUTRO = ("¿Cuántos acertaste?", "¿Cuántos sacaste?", "Hasta aquí el reto de hoy.")
+LOOP_OUTRO = ("¿Cuántas veces lo repetiste?", "¿Cuántas veces lo viste?")
 
 # Gancho en pantalla durante el primer segundo (el primer fotograma decide si el usuario se queda; los Reels suelen
 # verse sin sonido al principio). {N} = numero de retos. Se elige segun la categoria del primer reto.
 HOOK_TEXT = {
-    "Visual": ("SOLO EL 1% LO ENCUENTRA", "¿TIENES VISTA DE ÁGUILA?", "TU CEREBRO TE VA A ENGAÑAR", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Visual": ("¿LO ENCUENTRAS?", "¿TIENES VISTA DE ÁGUILA?", "TU CEREBRO TE VA A ENGAÑAR", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
     "Reflejos": ("¿TUS REFLEJOS SON REALES?", "UN SOLO FOTOGRAMA PARA ACERTAR", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
-    "Atención": ("NO PIERDAS LA CUENTA", "SOLO EL 1% LO SIGUE", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Atención": ("NO PIERDAS LA CUENTA", "¿PUEDES SEGUIRLO?", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
     "Memoria": ("¿TIENES BUENA MEMORIA?", "NO PARPADEES", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
-    "Mente": ("¿ERES MÁS LISTO QUE TUS AMIGOS?", "EL 90% FALLA EL PRIMERO", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
+    "Mente": ("¿ERES MÁS LISTO QUE ESTE RETO?", "EL PRIMERO YA TIENE TRUCO", "{N} RETOS · ¿CUÁNTOS ACIERTAS?"),
 }
 
 

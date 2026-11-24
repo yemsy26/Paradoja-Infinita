@@ -45,7 +45,7 @@ python autopiloto.py --check              # comprueba el token y muestra el nomb
 python autopiloto.py --dry-run --ahora foto   # genera una imagen y enseña qué publicaría, sin publicar
 python autopiloto.py --ahora foto         # publica de verdad UNA imagen, ya
 python autopiloto.py --ahora video        # publica de verdad UN Reel, ya
-python autopiloto.py --estado             # enseña lo publicado hoy y lo pendiente (solo lee: no publica ni toca nada)
+python autopiloto.py --estado             # lo publicado hoy, plantillas usadas, intervalo y lo pendiente (solo lee)
 python autopiloto.py                      # modo autopiloto: se queda esperando las franjas
 ```
 
@@ -69,7 +69,9 @@ En Windows, `iniciar_autopiloto.bat` hace lo mismo (comprueba el entorno, el `.e
   `Authorization: OAuth`, `offset` y `file_size` (un solo cuerpo; si se corta se reanuda desde `bytes_transfered`) y
   `upload_phase=finish` con `video_state=PUBLISHED`. Después espera a que Meta lo procese. Antes de subir se comprueba con
   `ffprobe` que cumple lo que pide Meta (9:16, mínimo 540×960, 24–60 fps, 3–90 s, AAC 48 kHz). Los Reels se envían con
-  `is_ai_generated=true` (la voz es sintética) salvo que pongas `IA_ETIQUETA=0`.
+  `is_ai_generated=true` solo si pones `IA_ETIQUETA=1`. **Por defecto (`IA_ETIQUETA=0`) no se envía ese parámetro en ninguna
+  fase.** Meta pide declarar el contenido realista creado o alterado digitalmente (y la voz de los Reels es sintética): es
+  una decisión tuya; comprueba la política vigente.
 - **Fotos.** Se publican con `caption` (el copy) y, si la API lo acepta, `alt_text_custom` (el texto alternativo).
 - **Zona horaria y PC.** Las horas son las del PC. Si una franja pasó mientras el PC estaba apagado o dormido, se recupera
   al volver si han pasado menos de `TOLERANCIA_HORAS` (3 por defecto) y todavía queda cupo; si no, se omite (no se publica
@@ -106,6 +108,19 @@ franja, hora, archivo, id de Meta y si fue `ok` o `ambiguo`) y el estado de cada
   empezado antes de publicarse o, si fue antes de todas, la primera. Así, si ya subiste un Reel a las 13:53 y tienes las
   franjas 12:30 y 19:30, la de las 12:30 queda como «cubierta por una publicación manual» en vez de «recuperarse» a
   los pocos minutos, y la de las 19:30 sigue en pie.
+- **Separación mínima entre publicaciones.** `MIN_INTERVALO_MINUTOS` (180 por defecto; 0 la desactiva) es la distancia mínima
+  entre dos publicaciones **de cualquier tipo, incluidas las de `--ahora`**. Se aplica en tres sitios: al planificar (las franjas
+  se retrasan hasta cumplirla; la que quedaría fuera de su margen o del día se omite), antes de generar (una franja
+  que llega demasiado pronto se aplaza hasta que se cumpla) y justo antes de publicar (si salió otra mientras se generaba,
+  el archivo espera sin volver a renderizarse). `--ahora` es una orden expresa: publica igualmente y lo avisa en el log. Con
+  horarios como `10:00`, `14:30` y `19:30` el intervalo ni se nota; con franjas más juntas se van retrasando.
+- **Plantillas sin repetir.** Cada publicación guarda en el estado su plantilla (el tipo de imagen —`pemdas`, `cubos`,
+  `fracciones`, `opciones`— o el formato del video). Al generar, el autopiloto pasa las de hoy al generador con
+  `--evitar` y, si aun así saliera repetida, descarta el resultado y genera otro (hasta 3 intentos); solo se vuelve a
+  permitir una plantilla cuando ya se usaron todas.
+- **Política de texto.** Antes de publicar se comprueba el texto con `copy_guard.py`: si menciona la IA o contiene cebos
+  de interacción (cifras inventadas, «la mayoría falla», «comenta...», «etiqueta a...», «compártelo...»), se descarta y se genera
+  otro (3 intentos; si todos fallan, esa franja queda con error y no se publica).
 - **Misma hora tras reiniciar.** La hora elegida (franja + retraso aleatorio) queda guardada: un reinicio antes de esa hora
   la conserva en vez de sortear otra. Si ya pasó (el PC estaba apagado), se publica enseguida.
 - **Errores.** Una franja con error (render o rechazo de la API: no llegó a publicarse) se vuelve a intentar al reiniciar,

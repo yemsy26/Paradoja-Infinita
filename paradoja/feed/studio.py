@@ -89,6 +89,6 @@ def generate_one(mode: str, seed: int, kit: FontKit, out_root: Path = DEFAULT_OU
     return Result(mode, seed, slug, image, txt, paste, puz, post, palette)
 
 
-def choose_mode(requested: str, out_root: Path, rng: random.Random) -> str:
-    """`aleatorio` elige el tipo menos usado recientemente; cualquier otro valor se devuelve tal cual."""
-    return hist.pick_mode(hist.load(out_root), rng) if requested == "aleatorio" else requested
+def choose_mode(requested: str, out_root: Path, rng: random.Random, avoid=()) -> str:
+    """`aleatorio` elige el tipo menos usado recientemente (sin los de `avoid` si hay otros); cualquier otro valor se devuelve tal cual."""
+    return hist.pick_mode(hist.load(out_root), rng, avoid=avoid) if requested == "aleatorio" else requested

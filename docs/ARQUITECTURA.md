@@ -34,7 +34,7 @@ Un video es una lista de **actos** (`scene.Act`); cada acto es un reto de un tip
 repite el tipo; el video `mix` combina tipos distintos. La **apertura** (`Scene.lead`, 2,5–4,4 s según lo que dure el
 gancho hablado) deja el primer reto ya formado y quieto mientras suena y se lee el gancho (`Scene.hook`); los actos
 empiezan en `lead`. El **cierre** (`Scene.outro_len`, 4–5 s) narra y quema la llamada a seguir (`Scene.cta`), y pide
-comentar el puntaje y compartir.
+preguntar por el resultado (sin pedir comentar ni compartir).
 
 `acts._plan` reparte los 59,5-60 s disponibles entre los actos escalando la duración base de cada tipo
 (`TypeInfo.base_len`). `acts.build_acts` llama al constructor del tipo, que devuelve todo lo que el acto necesita:
@@ -125,6 +125,11 @@ planificador) para probarlo sin red ni GPU (`tests/test_autopilot.py`).
 - Errores: `GraphError` distingue `retry` (límite de llamadas, 5xx antes de recibir nada) de `ambiguous` (la publicación pudo
   llegar a Meta: no se reintenta, se anota «ambiguo» y cuenta como publicada). Un fallo de generación no se confunde con uno
   de publicación, y los reintentos de publicación no vuelven a renderizar.
+- Política de texto: `copy_guard.py` define los patrones prohibidos (menciones a la IA y cebos de interacción). Las pruebas lo
+  aplican a miles de textos generados y `Autopilot.generate` lo usa como última barrera (descarta y regenera hasta 3 veces).
+- Separación y variedad: `MIN_INTERVALO_MINUTOS` se aplica al planificar (`_space`), antes de generar (`execute` aplaza la
+  franja) y justo antes de publicar (`publish` espera con el archivo ya listo); la plantilla de cada publicación se guarda en
+  el estado y se pasa a los generadores con `--evitar` para no repetirla el mismo día.
 - El token solo vive en `Config` (que lo enmascara) y en las llamadas; `redact()` lo borra de mensajes y del log.
 - Estado y bloqueo: `estado_autopiloto.json` (por día: contadores, `publicaciones` con archivo e id y estado de cada franja
   `foto@11:30`) y `autopiloto.lock` (`msvcrt`/`fcntl`, se libera si el proceso muere). `State` escribe de forma atómica

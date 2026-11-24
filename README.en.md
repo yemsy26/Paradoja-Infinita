@@ -101,7 +101,7 @@ no arguments to run the daily schedule. Render or API failures go to `autopiloto
 published each day (files, post ids, executed/skipped slots) is saved atomically in `estado_autopiloto.json`: after a closed
 program or a Windows reboot it schedules only the pending slots within the daily caps, so nothing is duplicated
 (`--estado` prints today's summary without touching anything). Reels follow the official three-phase
-flow (start, resumable upload, finish) and are flagged as AI content. Setup and troubleshooting: `docs/AUTOPILOTO.md`
+flow (start, resumable upload, finish); the AI label is off by default (`IA_ETIQUETA=0` never sends `is_ai_generated`). Setup and troubleshooting: `docs/AUTOPILOTO.md`
 (Spanish). The random delay is cosmetic: it does not protect against Meta's originality and spam policies.
 
 ## Unique text (text spinning)
@@ -123,7 +123,9 @@ fingerprint in `output/historial.json` and is recomposed if it would match a rec
 
 Varying the text lowers repetition but is not enough by itself for Meta's original-content and spam policies: publishing
 many near-identical videos a day can still be treated as repetitive. Keep a sane posting pace, avoid links, use at most
-5 hashtags and enable the "AI label".
+5 hashtags. The generated copy asks neither for comments, shares nor tags and makes no "99% fail" claims
+(`paradoja/copy_guard.py`), and the autopilot keeps at least `MIN_INTERVALO_MINUTOS` (180 by default) between any two
+posts and avoids repeating the same challenge template the same day.
 
 ## Requirements
 

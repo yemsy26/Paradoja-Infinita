@@ -73,10 +73,10 @@ def client(handler, sleeps=None):
     return GraphClient(PAGE, TOKEN, "v26.0", http=http, sleep=(sleeps.append if sleeps is not None else lambda s: None)), http
 
 
-def make_files(tmp_path, kind, copy="Hola 👇\n\n#Reto #ParadojaInfinita", n=1):
+def make_files(tmp_path, kind, copy="Hola, mira este reto\n\n#Reto #ParadojaInfinita", n=1, template=None):
     day = Path(tmp_path) / "salida" / "2026-11-23"
     day.mkdir(parents=True, exist_ok=True)
-    stem = f"{kind}_prueba_{n}"
+    stem = f"{template or kind}_prueba_{n}"
     path = day / (stem + (".png" if kind == "foto" else ".mp4"))
     path.write_bytes(bytes(range(256)) * 40)
     (day / f"{stem}_publicar.txt").write_text(copy, "utf-8-sig")
@@ -107,11 +107,13 @@ def test_config_defaults_overrides_and_validation(tmp_path):
     cfg = Config.from_sources({"PAGE_ID": PAGE, "PAGE_ACCESS_TOKEN": TOKEN}, environ={}, root=tmp_path)
     assert (cfg.photo_times, cfg.video_times, cfg.jitter_min, cfg.jitter_max) == (("11:30",), ("18:00",), 1, 15)
     assert (cfg.max_photos, cfg.max_videos) == (1, 1) and cfg.state_file == tmp_path / "estado_autopiloto.json"
-    assert cfg.ai_label is True and cfg.dry_run is False and cfg.version == "v26.0" and cfg.problems() == []
+    assert cfg.ai_label is False and cfg.min_gap_minutes == 180                   # sin etiqueta de IA y 3 h entre publicaciones
+    assert cfg.dry_run is False and cfg.version == "v26.0" and cfg.problems() == []
     over = Config.from_sources({"PAGE_ID": PAGE, "PAGE_ACCESS_TOKEN": TOKEN, "HORARIOS_FOTOS": "09:05", "JITTER_MAX": "7",
-                                "IA_ETIQUETA": "0", "DRY_RUN": "1", "SALIDA_IMAGENES": "imgs"},
+                                "IA_ETIQUETA": "1", "DRY_RUN": "1", "SALIDA_IMAGENES": "imgs", "MIN_INTERVALO_MINUTOS": "240"},
                                environ={"HORARIOS_FOTOS": "10:00,15:30", "OTRA": "x"}, root=tmp_path)
-    assert over.photo_times == ("10:00", "15:30") and over.jitter_max == 7 and not over.ai_label and over.dry_run   # el entorno manda
+    assert over.photo_times == ("10:00", "15:30") and over.jitter_max == 7 and over.ai_label and over.dry_run   # el entorno manda
+    assert over.min_gap_minutes == 240
     assert over.image_out == tmp_path / "imgs"
     bad = Config.from_sources({"PAGE_ID": "abc", "PAGE_ACCESS_TOKEN": "PEGA_AQUI_TU_TOKEN_DE_PAGINA_DE_LARGA_DURACION",
                                "HORARIOS_FOTOS": "25:00", "HORARIOS_VIDEOS": "7pm", "JITTER_MIN": "20", "JITTER_MAX": "5",
@@ -363,8 +365,9 @@ def combo_handler(state):
     return lambda m, u, kw: Resp(200, {"id": "9", "post_id": f"{PAGE}_9"}) if u.endswith("/photos") else reels(m, u, kw)
 
 
-def build(tmp_path, handler=None, *, dry=False, **cfg_kw):
+def build(tmp_path, handler=None, *, dry=False, gen=None, **cfg_kw):
     """Autopilot con generadores y API simulados. -> (auto, http, calls_del_generador)."""
+    cfg_kw.setdefault("min_gap_minutes", 0)                      # las pruebas del intervalo minimo lo piden expresamente
     cfg = Config(page_id=PAGE, token=TOKEN, dry_run=dry, image_out=tmp_path / "salida", video_out=tmp_path / "salida",
                  state_file=tmp_path / "estado.json", log_file=tmp_path / "x.log", **cfg_kw)
     gen_calls = []
@@ -374,7 +377,8 @@ def build(tmp_path, handler=None, *, dry=False, **cfg_kw):
         if cmd[1] == "-c":                                       # comprobacion de modulos del Python de los generadores
             return SimpleNamespace(returncode=0, stdout=b"MISSING:", stderr=b"")
         gen_calls.append(cmd)
-        make_files(tmp_path, "foto" if cmd[1].endswith("generador_imagenes.py") else "video", n=next(counter))
+        n = next(counter)
+        make_files(tmp_path, "foto" if cmd[1].endswith("generador_imagenes.py") else "video", n=n, **(gen(cmd, n) if gen else {}))
         return SimpleNamespace(returncode=0, stdout=b"ok", stderr=b"")
 
     http = FakeHttp(handler or (lambda m, u, kw: Resp(200, {"id": "9", "post_id": "9_9", "video_id": "777", "success": True,
@@ -411,7 +415,7 @@ def test_photo_task_generates_publishes_and_records_the_day(tmp_path):
     auto, http, gen = build(tmp_path)
     out = auto.execute("foto", "11:30")
     assert out.status == "ok" and gen[0][1].endswith("generador_imagenes.py") and "aleatorio" in gen[0] and "--no-copy" in gen[0]
-    assert http.calls[0].url.endswith(f"/{PAGE}/photos") and http.calls[0].kw["data"]["caption"].startswith("Hola 👇")
+    assert http.calls[0].url.endswith(f"/{PAGE}/photos") and http.calls[0].kw["data"]["caption"].startswith("Hola")
     assert http.calls[0].kw["data"]["alt_text_custom"] == "Imagen de un reto."
     assert auto.state.count(DAY, "foto") == 1 and auto.state.slot(DAY, "foto", "11:30")["estado"] == "ejecutada"
     again = auto.execute("foto", "11:30")
@@ -437,11 +441,11 @@ def test_video_publishing_flow_end_to_end(tmp_path):
     out = auto.execute("video", "18:00")
     assert out.status == "ok" and out.post_id == "777" and state["phases"] == ["start", "finish"]
     fin = next(c for c in http.calls if is_finish(c))
-    assert fin.kw["data"]["is_ai_generated"] == "true" and fin.kw["data"]["description"].startswith("Hola")
+    assert "is_ai_generated" not in fin.kw["data"] and fin.kw["data"]["description"].startswith("Hola")   # sin etiqueta por defecto
     assert on_disk(auto)["publicaciones"][0]["id"] == "777"
-    auto2, http2, _ = build(tmp_path / "otro", reel_handler({}), ai_label=False)
+    auto2, http2, _ = build(tmp_path / "otro", reel_handler({}), ai_label=True)                          # IA_ETIQUETA=1: solo entonces
     auto2.execute("video", "18:00")
-    assert next(c for c in http2.calls if is_finish(c)).kw["data"]["is_ai_generated"] == "false"
+    assert next(c for c in http2.calls if is_finish(c)).kw["data"]["is_ai_generated"] == "true"
 
 
 def test_daily_limits_are_independent_per_type_and_dry_run_records_nothing(tmp_path):
@@ -787,6 +791,223 @@ def test_status_lines_summarise_counts_files_and_slots(tmp_path):
     assert "Franja video 18:00: AMBIGUA" in text
     off = build(tmp_path / "x", video_times=())[0]
     assert "videos 0/0 (desactivado)" in off.status_lines()[0] and not any("Franja video" in x for x in off.status_lines())
+
+
+# --------------------------------------------------------------------------- etiqueta de IA desactivada por defecto
+def _sent_params(call) -> str:
+    """Todo lo que una llamada envia a Meta (cuerpo, parametros, cabeceras y URL) en un solo texto."""
+    kw = call.kw
+    return " ".join(str(x) for x in (call.url, kw.get("data"), kw.get("params"), kw.get("headers"), kw.get("json")))
+
+
+def test_ai_label_is_off_by_default_and_the_parameter_is_never_sent(tmp_path):
+    cfg = Config.from_sources({"PAGE_ID": PAGE, "PAGE_ACCESS_TOKEN": TOKEN}, environ={}, root=tmp_path)
+    assert cfg.ai_label is False                                             # valor por defecto del codigo
+    assert Config.from_sources({"IA_ETIQUETA": "0"}, environ={}, root=tmp_path).ai_label is False
+    assert Config.from_sources({"IA_ETIQUETA": "1"}, environ={}, root=tmp_path).ai_label is True
+    state = {}
+    auto, http, _ = build(tmp_path, combo_handler(state))                    # IA_ETIQUETA=0: la foto y el Reel completos
+    assert auto.cfg.ai_label is False
+    assert auto.execute("foto", "11:30").status == "ok" and auto.execute("video", "18:00").status == "ok"
+    assert state["phases"] == ["start", "finish"] and len(http.calls) > 3
+    assert not [c for c in http.calls if "is_ai_generated" in _sent_params(c)]    # ni en inicio, subida, fin o estado
+    assert not [c for c in http.calls if "ai_generated" in _sent_params(c).lower()]
+    fin = next(c for c in http.calls if is_finish(c))
+    assert set(fin.kw["data"]) == {"upload_phase", "video_id", "video_state", "description", "access_token"}
+
+
+def test_reel_client_only_sends_is_ai_generated_when_asked(tmp_path):
+    mp4 = make_files(tmp_path, "video")
+    for flag in (False, None):
+        c, http = client(reel_handler({}))
+        kwargs = {} if flag is None else {"ai_generated": flag}
+        c.post_reel(mp4, "Descripción", **kwargs)
+        assert not [x for x in http.calls if "is_ai_generated" in _sent_params(x)]
+    c, http = client(reel_handler({}))
+    c.post_reel(mp4, "Descripción", ai_generated=True)
+    flagged = [x for x in http.calls if "is_ai_generated" in _sent_params(x)]
+    assert len(flagged) == 1 and is_finish(flagged[0]) and flagged[0].kw["data"]["is_ai_generated"] == "true"
+    c, http = client(lambda m, u, kw: Resp(200, {"id": "1", "post_id": "1_1"}))
+    c.post_photo(make_files(tmp_path, "foto"), "Copy", "Texto alternativo")        # las fotos nunca llevan el parametro
+    assert not [x for x in http.calls if "ai_generated" in _sent_params(x).lower()]
+
+
+def test_env_templates_ship_with_the_ai_label_off_and_the_minimum_gap():
+    root = Path(__file__).resolve().parent.parent
+    example = parse_env((root / ".env.example").read_text("utf-8"))
+    assert example["IA_ETIQUETA"] == "0" and example["MIN_INTERVALO_MINUTOS"] == "180"
+    assert example["PAGE_ID"] == "" and example["PAGE_ACCESS_TOKEN"] == ""          # solo marcadores, nunca datos reales
+    cfg = Config.from_sources(example, environ={}, root=root)
+    assert cfg.ai_label is False and cfg.min_gap_minutes == 180 and cfg.problems(need_credentials=False) == []
+
+
+def test_min_gap_setting_is_validated(tmp_path):
+    assert Config.from_sources({"MIN_INTERVALO_MINUTOS": "0"}, environ={}, root=tmp_path).problems(False) == []
+    assert "MIN_INTERVALO_MINUTOS" in " ".join(Config.from_sources({"MIN_INTERVALO_MINUTOS": "5000"}, environ={}, root=tmp_path).problems(False))
+    assert Config.from_sources({"MIN_INTERVALO_MINUTOS": "oops"}, environ={}, root=tmp_path).min_gap_minutes == 180
+
+
+# --------------------------------------------------------------------------- separacion minima entre publicaciones
+class ClockSched(FakeSched):
+    """FakeSched que ademas recuerda a que hora debe saltar cada tarea (reloj simulado)."""
+
+    def __init__(self, clock):
+        super().__init__()
+        self.clock, self.due = clock, []
+
+    def every(self, n):
+        outer, base = self, super().every(n)
+
+        class _J:
+            @property
+            def seconds(s):
+                return s
+
+            def do(s, fn, *args):
+                base.seconds.do(fn, *args)
+                outer.due.append(outer.clock() + timedelta(seconds=n))
+        return _J()
+
+
+def at(h, m=0, s=0):
+    return datetime(2026, 11, 23, h, m, s)
+
+
+def test_planning_spaces_slots_from_the_last_publication_including_manual_ones(tmp_path):
+    auto, _, _ = build(tmp_path, min_gap_minutes=180, photo_times=("10:00",), video_times=("12:30", "19:30"), max_videos=2)
+    auto.when[0] = at(12, 0)
+    assert auto.run_now("foto").status == "ok"                                # --ahora foto a las 12:00
+    auto.when[0] = at(12, 5)
+    planned, omitted = auto.plan()
+    video = next(p for p in planned if p.slot == "12:30")
+    assert video.when >= at(15, 0) and video.when.date() == DAY               # 12:00 + 3 h: nunca antes
+    assert any(p.slot == "19:30" for p in planned) and not omitted
+    assert auto.state.slot(DAY, "video", "12:30")["prevista"] == video.when.strftime("%H:%M:%S")   # y queda guardado
+
+
+def test_a_slot_that_the_gap_pushes_out_of_its_margin_is_omitted(tmp_path):
+    auto, _, _ = build(tmp_path, min_gap_minutes=180, tolerance_hours=1.0, photo_times=("10:00",), video_times=("12:30",))
+    auto.when[0] = at(12, 0)
+    auto.run_now("foto")
+    auto.when[0] = at(12, 5)
+    planned, omitted = auto.plan()
+    assert [p.kind for p in planned] == [] and omitted[0][:2] == ("video", "12:30") and "intervalo mínimo" in omitted[0][2]
+    assert auto.state.slot(DAY, "video", "12:30")["estado"] == "omitida"
+
+
+def test_execute_defers_a_slot_inside_the_gap_instead_of_publishing(tmp_path):
+    auto, http, gen = build(tmp_path, min_gap_minutes=180, video_times=("18:00",))
+    auto.when[0] = at(17, 0)
+    auto.state.finish(DAY, "foto", "manual-170000", "ok", "antes.png", "1_1")      # salio algo a las 17:00
+    auto.when[0] = at(17, 30)
+    waiting = auto.execute("video", "18:00")
+    assert waiting.status == "deferred" and waiting.retry_in == 9000               # hasta las 20:00 (17:00 + 3 h)
+    assert not http.calls and not gen                                              # no se renderiza ni se publica
+    assert auto.state.slot(DAY, "video", "18:00") == {"estado": "programada", "prevista": "20:00:00"}
+    auto._after(waiting)
+    assert auto.sched.jobs[0][0] == 9000 and auto.sched.jobs[0][2] == ("video", "18:00", DAY)    # se vuelve a lanzar a las 20:00
+    auto.when[0] = at(20, 0, 1)
+    assert auto.execute("video", "18:00").status == "ok"                           # ya pasaron las 3 horas
+
+
+def test_publish_holds_the_file_while_the_gap_is_not_over(tmp_path):
+    auto, http, _ = build(tmp_path, min_gap_minutes=180)
+    art = auto.generate("video")
+    auto.state.finish(DAY, "foto", "11:30", "ok", "otra.png", "1_1")               # salio otra publicacion mientras se generaba
+    held = auto.publish(art, "18:00", DAY)
+    assert held.status == "retry" and held.attempt == 1 and held.retry_in == pytest.approx(180 * 60, abs=1)
+    assert not http.calls and auto.state.slot(DAY, "video", "18:00") is None       # nada anotado como en curso
+    auto.when[0] = at(14, 41)                                                      # pasadas las 3 horas
+    assert auto.publish(held.artifact, "18:00", DAY).status == "ok"
+
+
+def test_manual_now_is_allowed_inside_the_gap(tmp_path):
+    auto, http, _ = build(tmp_path, min_gap_minutes=180)
+    auto.state.finish(DAY, "foto", "11:30", "ok", "otra.png", "1_1")
+    assert auto.run_now("video").status == "ok" and len(http.calls) >= 1           # --ahora es una orden expresa
+
+
+def test_a_whole_day_never_publishes_twice_within_the_minimum_gap(tmp_path):
+    """Simula un dia entero con eventos y comprueba la separacion real entre todas las publicaciones."""
+    auto, http, _ = build(tmp_path, combo_handler({}), min_gap_minutes=180, photo_times=("10:00",), max_photos=1,
+                          video_times=("10:30", "14:30", "19:30"), max_videos=3)
+    auto.sched = ClockSched(lambda: auto.when[0])
+    auto.when[0] = at(7, 0)
+    auto.start_day()
+    for _ in range(40):                                                            # bucle de eventos
+        if not auto.sched.jobs:
+            break
+        i = min(range(len(auto.sched.jobs)), key=lambda k: auto.sched.due[k])
+        _n, fn, args = auto.sched.jobs.pop(i)
+        auto.when[0] = max(auto.when[0], auto.sched.due.pop(i))
+        fn(*args)
+    stamps = sorted(datetime.strptime(f"2026-11-23 {p['hora']}", "%Y-%m-%d %H:%M:%S") for p in auto.state.publications(DAY))
+    assert len(stamps) >= 3, stamps                                                # salieron la foto y los Reels que caben
+    for a, b in zip(stamps, stamps[1:]):
+        assert b - a >= timedelta(minutes=180), (a, b)                             # ni una a menos de 3 h de la anterior
+    assert on_disk(auto)["fotos"] == 1 and on_disk(auto)["videos"] == len(stamps) - 1
+
+
+# --------------------------------------------------------------------------- anti-repeticion de plantillas
+def test_templates_are_read_from_the_file_name_and_match_the_generators():
+    from paradoja.feed import puzzles
+    from paradoja.metadata import MODE_SLUG
+    from paradoja.scene import MODES
+    assert set(media.IMAGE_TEMPLATES) == set(puzzles.MODES) and set(media.VIDEO_TEMPLATES) == set(MODES)
+    assert media.VIDEO_SLUG_TO_MODE == {slug: mode for mode, slug in MODE_SLUG.items()}
+    assert media.template_of(Path("2026-11-23/cubos_7-8_123.png"), "foto") == "cubos"
+    assert media.template_of(Path("simon_colores_762419734.mp4"), "video") == "simon"
+    assert media.template_of(Path("calculo_operaciones_9.mp4"), "video") == "math"
+    assert media.template_of(Path("mixto_calculo-conteo_9.mp4"), "video") == "mix"
+    assert media.template_of(Path("raro_1.png"), "foto") == "" and media.template_of(Path("simon_1.mp4"), "foto") == ""
+
+
+def test_generators_get_the_templates_already_published_today(tmp_path):
+    def generator(cmd, n):                                         # un generador que respeta --evitar
+        avoid = cmd[cmd.index("--evitar") + 1].split(",") if "--evitar" in cmd else []
+        pool = media.IMAGE_TEMPLATES if cmd[1].endswith("generador_imagenes.py") else media.VIDEO_TEMPLATES
+        return {"template": next(t for t in pool if t not in avoid)}
+
+    auto, http, gen = build(tmp_path, photo_times=("09:00", "12:00", "16:00"), max_photos=3, gen=generator)
+    done = [auto.execute("foto", s).status for s in ("09:00", "12:00", "16:00")]
+    assert done == ["ok"] * 3
+    assert "--evitar" not in gen[0]                                                   # la primera no evita nada
+    assert gen[1][gen[1].index("--evitar") + 1] == "pemdas"                           # la segunda evita la de las 09:00
+    assert set(gen[2][gen[2].index("--evitar") + 1].split(",")) == {"pemdas", "cubos"}
+    assert auto.state.templates(DAY, "foto") == ["pemdas", "cubos", "fracciones"]     # nunca dos iguales el mismo dia
+    assert [p["plantilla"] for p in on_disk(auto)["publicaciones"]] == ["pemdas", "cubos", "fracciones"]
+    new = reopen(auto)                                                                # y se recuerda tras reiniciar
+    assert new._avoid("foto", DAY) == ("pemdas", "cubos", "fracciones") and new._avoid("video", DAY) == ()
+
+
+def test_when_every_template_was_used_only_the_last_one_is_avoided(tmp_path):
+    auto, _, _ = build(tmp_path)
+    for i, t in enumerate(media.IMAGE_TEMPLATES):
+        auto.state.finish(DAY, "foto", f"manual-{i}", "ok", f"{t}.png", str(i), plantilla=t)
+    assert auto._avoid("foto", DAY) == (media.IMAGE_TEMPLATES[-1],)
+
+
+def test_a_repeated_template_is_regenerated_and_accepted_only_as_a_last_resort(tmp_path):
+    auto, _, gen = build(tmp_path, photo_times=("09:00", "12:00"), max_photos=2,
+                         gen=lambda cmd, n: {"template": "cubos" if n < 3 else "pemdas"})
+    auto.execute("foto", "09:00")                                                     # n=1: cubos
+    out = auto.execute("foto", "12:00")                                               # n=2: cubos otra vez -> se descarta; n=3: pemdas
+    assert out.status == "ok" and len(gen) == 3 and auto.state.templates(DAY, "foto") == ["cubos", "pemdas"]
+    stubborn, _, gen2 = build(tmp_path / "b", photo_times=("09:00", "12:00"), max_photos=2, gen=lambda cmd, n: {"template": "cubos"})
+    stubborn.execute("foto", "09:00")
+    out = stubborn.execute("foto", "12:00")                                           # el generador insiste: tras 3 intentos se acepta
+    assert out.status == "ok" and len(gen2) == 1 + core.Autopilot.GEN_TRIES
+
+
+# --------------------------------------------------------------------------- politica de texto antes de publicar
+def test_generated_text_that_breaks_the_policy_is_discarded_and_regenerated(tmp_path):
+    bad = ["Comenta SÍ si lo lograste 👇\n\n#Reto", "Este reto fue creado con IA\n\n#Reto", "Solo el 1% lo resuelve\n\n#Reto"]
+    auto, http, gen = build(tmp_path, gen=lambda cmd, n: {"copy": bad[n - 1] if n <= 3 else "Un reto con calma\n\n#Reto"})
+    out = auto.execute("foto", "11:30")
+    assert out.status == "error" and "política" in out.detail and len(gen) == 3 and not http.calls   # 3 intentos y no publica
+    auto, http, gen = build(tmp_path / "b", gen=lambda cmd, n: {"copy": bad[0] if n == 1 else "Un reto con calma\n\n#Reto"})
+    out = auto.execute("foto", "11:30")
+    assert out.status == "ok" and len(gen) == 2 and "Comenta" not in http.calls[0].kw["data"]["caption"]
 
 
 # --------------------------------------------------------------------------- estado en disco: escritura atomica y recuperacion

@@ -85,20 +85,20 @@ def _answers_text(sc) -> str:
 
 # ----------------------------------------------------------------------------- textos por tipo
 # cada funcion devuelve (titulos, descripciones, lineas extra de VARIABLES)
+# Politica: la descripcion explica el reto y termina con una pregunta o una indicacion sobre el propio reto. Nunca pide
+# comentar, compartir, etiquetar ni seguir, ni afirma nada sobre lo que hace «la mayoria» (ver `copy_guard.py`).
 def _anomaly(sc, tl):
     g, n = T.g(sc.shape), len(sc.acts)
-    titles = (f"¿Puedes encontrar {g['el']} {g['noun']} diferente? Solo el 1% lo logra",
+    titles = (f"¿Puedes encontrar {g['el']} {g['noun']} diferente? Míralo con calma",
               f"Reto visual: {n} retos y {g['un']} {g['noun']} distinto escondido",
               f"Tu cerebro no es tan rápido como crees: encuentra {g['el']} {g['noun']} que no encaja",
               f"{n} retos, 1 {g['noun']} diferente en cada uno. ¿Cuántos aciertas?")
     descs = (f"Hay {g['un']} {g['noun']} distinto escondido en cada reto, y cada vez es más difícil. 🔍\n\n"
-             f"👇 Comenta en qué segundo lo notaste en el último reto. ¿Llegaste a ver los {n}?\n\n"
-             "Si lo lograste sin pausar, eres de los pocos. Sígueme para más retos visuales.",
+             f"¿En qué segundo lo notaste en el último reto? ¿Llegaste a ver los {n}?",
              f"Mira bien: entre decenas de figuras hay {g['un']} {g['noun']} que no es igual a las demás.\n\n"
-             "👇 Escribe en qué segundo lo encontraste. ¡El último reto es casi imposible!\n\n"
-             "Etiqueta a alguien que crea que tiene mejor vista que tú.",
+             "El último reto es el más difícil. La respuesta llega al final de cada uno.",
              f"{n} retos. {g['el'].capitalize()} {g['noun']} diferente se esconde cada vez mejor. 👀\n\n"
-             "👇 Cuéntame en los comentarios: ¿en qué segundo lo notaste? ¿Cuántos retos acertaste?")
+             "¿Cuántos retos lograste resolver sin pausar?")
     return titles, descs, [f"Figura: {g['noun'].capitalize()}"]
 
 
@@ -108,15 +108,15 @@ def _illusion(sc, tl):
     first, listing = names[0], ", ".join(names)
     ask = T.ILL_ASK[sc.acts[0].kind]
     titles = (f"Tu cerebro te miente: {first} y {n - 1} ilusiones más",
-              f"{n} ilusiones ópticas que engañan a casi todos. ¿Y a ti?",
+              f"{n} ilusiones ópticas para engañar a tu cerebro. ¿Caes en alguna?",
               f"Lo que ves no es real: {first}",
               f"¿Caes en las {n} ilusiones? Empieza con la {first}")
     descs = (f"Cada ilusión usa un truco distinto de tu cerebro: {listing}. 🧠\n\n"
-             f"👇 {ask} Cuéntame en los comentarios cuántas de las {n} te engañaron.",
+             f"{ask} ¿Cuántas de las {n} te engañaron?",
              f"Mira con calma: nada de esto es lo que parece ({listing}).\n\n"
-             f"👇 Pregunta rápida: {ask} ¿Y cuántas ilusiones viste funcionar, de 0 a {n}?",
-             f"Tu cerebro rellena huecos... y se equivoca. 👁️ Hoy: {listing}.\n\n"
-             f"👇 {ask} Escribe tu resultado (0 a {n}).")
+             f"Pregunta rápida: {ask} ¿Y cuántas ilusiones viste funcionar, de 0 a {n}?",
+             f"Tu cerebro rellena huecos... y a veces se equivoca. 👁️ Hoy: {listing}.\n\n"
+             f"{ask} La explicación llega al final de cada una.")
     return titles, descs, ["Preguntas por ilusión: " + " | ".join(f"{i + 1}) {T.ILL_ASK[a.kind]}" for i, a in enumerate(sc.acts))]
 
 
@@ -124,14 +124,14 @@ def _sync(sc, tl):
     g, n = T.g(sc.shape), len(sc.acts)
     titles = (f"¿Puedes pausar justo cuando {g['el']} {g['noun']} encaja? Solo tienes 1 fotograma",
               f"Reto de reflejos: pausa en el instante exacto ({n} intentos)",
-              f"El 99% falla: pausa cuando {g['el']} {g['noun']} encaje en la silueta",
+              f"Pausa cuando {g['el']} {g['noun']} encaje en la silueta: un solo fotograma",
               f"{n} pruebas, 1 fotograma para acertar. ¿Cuántas logras?")
     descs = (f"{g['el'].capitalize()} {g['noun']} gira a velocidad extrema y solo encaja UN fotograma por prueba. ⏸️\n\n"
-             f"👇 Pausa el video y comenta en qué número del contador (5, 4, 3, 2 o 1) lo hiciste en la última prueba. ¿Acertaste las {n}?",
+             f"¿En qué número del contador (5, 4, 3, 2 o 1) lo hiciste en la última prueba? ¿Acertaste las {n}?",
              f"Pon a prueba tus reflejos: pausa justo cuando {g['el']} {g['noun']} coincida con la silueta. Cada prueba es más rápida. ⚡\n\n"
-             f"👇 Comenta cuántas de las {n} pruebas lograste y reta a un amigo a superarte.",
-             f"Un solo fotograma. Una sola oportunidad. ⏱️\n\n"
-             f"👇 Escribe en qué prueba fallaste primero (1 a {n}) y etiqueta a quien tenga mejores reflejos.")
+             f"¿Cuántas de las {n} pruebas lograste?",
+             "Un solo fotograma. Una sola oportunidad. ⏱️\n\n"
+             f"¿En qué prueba fallaste primero (1 a {n})?")
     return titles, descs, [f"Figura: {g['noun'].capitalize()}"]
 
 
@@ -140,31 +140,31 @@ def _ishihara(sc, tl):
     nums = sum(a.sym >= 0 for a in sc.acts)
     what = "números" if nums == n else "figuras" if nums == 0 else "números y figuras"
     note = "(Es solo un juego, no un test médico.)"
-    titles = (f"Test de visión: ¿qué {what} escondí? Solo 1 de cada 10 los ve",
+    titles = (f"Test de visión: ¿qué {what} escondí entre los puntos?",
               f"¿Ves lo que hay escondido? {n} tests, cada uno más difícil",
               f"Entrecierra los ojos: {n} tests con {what} escondidos entre los puntos",
               f"Reto visual: ¿cuántos de los {n} tests logras ver?")
     descs = (f"Hay {what} escondidos entre los puntos y cada test es más difícil. 👀\n\n"
-             f"👇 Escribe lo que viste en cada test (1, 2, 3...). Si no ves nada, comenta NO VEO.\n\n{note}",
+             f"¿Qué viste en cada test (1, 2, 3...)?\n\n{note}",
              f"Tu cerebro busca patrones en el caos. ¿Puedes encontrarlos? 🧠\n\n"
-             f"👇 Comenta cuántos de los {n} tests lograste ver y cuál fue el más difícil.\n\n{note}",
+             f"¿Cuántos de los {n} tests lograste ver? ¿Cuál fue el más difícil?\n\n{note}",
              f"Aleja el teléfono, entrecierra los ojos y mira bien. {n} tests con {what} escondidos. 🔍\n\n"
-             f"👇 ¿Qué viste en el último? Escríbelo antes de ver la respuesta.\n\n{note}")
+             f"¿Qué viste en el último? La respuesta llega después de cada test.\n\n{note}")
     return titles, descs, []
 
 
 def _swarm(sc, tl):
     g, n = T.g(sc.shape), len(sc.acts)
-    titles = ("Sigue el punto rojo: solo los mejores no lo pierden",
+    titles = ("Sigue el punto rojo sin perderlo de vista",
               f"¿Dónde quedó el punto rojo? {n} retos de atención",
               "Tu atención contra el caos: no pierdas de vista el punto rojo",
               f"Reto de seguimiento: {n} rondas y cada vez más rápido")
     descs = (f"Un {g['noun']} rojo se mezcla con decenas más... y todos se detienen. ¿Sabes cuál era? 🔴\n\n"
-             "👇 Comenta en qué parte quedó en el último reto: ARRIBA, ABAJO, IZQUIERDA o DERECHA.",
+             "¿En qué parte quedó en el último reto: arriba, abajo, izquierda o derecha?",
              "No parpadees. El punto rojo desaparece entre el caos y cada ronda hay más figuras. 👁️\n\n"
-             f"👇 Escribe cuántas rondas acertaste (0 a {n}) y etiqueta a alguien con buena vista.",
+             f"¿Cuántas rondas acertaste (0 a {n})?",
              f"{n} rondas, un solo objetivo. Sigue el punto rojo con los ojos. 🎯\n\n"
-             "👇 ¿En qué ronda lo perdiste? Cuéntamelo en los comentarios.")
+             "¿En qué ronda lo perdiste?")
     return titles, descs, [f"Figura de las partículas: {g['noun'].capitalize()}"]
 
 
@@ -172,14 +172,14 @@ def _magiceye(sc, tl):
     n = len(sc.acts)
     titles = ("Ojo mágico: ¿qué figura en 3D está escondida?",
               f"Desenfoca la vista: {n} figuras 3D escondidas en el ruido",
-              "Solo 1 de cada 5 ve la figura 3D. ¿Y tú?",
+              "Mira a través de la imagen: hay una figura 3D escondida",
               f"Reto de ojo mágico: ¿cuántas de las {n} figuras logras ver?")
     descs = ("Relaja la vista, mira a través de la pantalla y espera: una figura 3D flota en el ruido. 👁️\n\n"
-             "👇 Escribe qué figura viste en cada prueba. ¿No ves nada? Comenta NO VEO y te cuento el truco.",
+             "¿Qué figura viste en cada prueba? Si no ves nada, prueba a alejar o acercar el teléfono.",
              f"Mira a través de la imagen, como si enfocaras algo detrás de la pantalla. {n} pruebas. 🧠\n\n"
-             "👇 Comenta qué figura viste en la última y cuánto tardaste en verla.",
-             f"No es ruido: hay una figura escondida. Desenfoca y espera unos segundos. ✨\n\n"
-             f"👇 Dime qué figura apareció (1 a {n}) y comparte con quien tenga paciencia.")
+             "¿Qué figura viste en la última y cuánto tardaste en verla?",
+             "No es ruido: hay una figura escondida. Desenfoca y espera unos segundos. ✨\n\n"
+             f"¿Qué figura apareció en cada una de las {n} pruebas?")
     return titles, descs, ["Truco: mirar 'a través' de la pantalla hasta que los dos puntos de arriba se fusionen y aparezcan tres"]
 
 
@@ -190,11 +190,11 @@ def _contrast(sc, tl):
               "Mira el bloque: ¿qué color tiene realmente?",
               "Solo cambia el fondo... ¿o también la figura?")
     descs = ("El fondo cambia y tu cerebro jura que la figura también. 🎨\n\n"
-             "👇 Vota en los comentarios antes de ver cada respuesta. ¿Cuántas pruebas te engañaron?",
+             "¿Cuántas pruebas te engañaron? La respuesta llega al final de cada una.",
              "Dos bloques, un truco del cerebro. ¿Cuál es más claro? 🧠\n\n"
-             f"👇 Comenta cuántas de las {n} pruebas acertaste (0 a {n}).",
+             f"¿Cuántas de las {n} pruebas acertaste (0 a {n})?",
              "Mira con atención y decide. La respuesta llega al final de cada prueba. 👁️\n\n"
-             "👇 Escribe tu respuesta y etiqueta a alguien que crea que no se deja engañar.")
+             "¿Te dejas engañar por el fondo?")
     return titles, descs, []
 
 
@@ -203,28 +203,28 @@ def _count(sc, tl):
     titles = (f"{q} Cuenta bien: {n} rondas",
               f"Reto de conteo: {n} rondas, cada vez más figuras",
               f"¿Cuántas figuras puedes contar sin perderte? {n} retos",
-              f"{q} Dime tu número en los comentarios")
+              f"{q} Cuenta con calma")
     descs = ("Las figuras se mueven y en cada ronda hay más. ¿Sabes contarlas sin perder la cuenta? 🔢\n\n"
-             "👇 Comenta tu número de la última ronda. ¡Gana quien acierte!",
+             "¿Cuántas había en la última ronda?",
              f"{n} rondas de conteo. Cada una más difícil que la anterior. 👀\n\n"
-             "👇 Escribe cuántas había en la ronda 3 y etiqueta a alguien con buena vista.",
+             "¿Cuántas había en la ronda 3?",
              "Cuenta en silencio y no te distraigas. 🧠\n\n"
-             f"👇 ¿Cuántas rondas acertaste, de 0 a {n}? Cuéntamelo.")
+             f"¿Cuántas rondas acertaste, de 0 a {n}?")
     return titles, descs, []
 
 
 def _flicker(sc, tl):
     n = len(sc.acts)
     titles = (f"¿Qué cambia entre las dos imágenes? {n} retos",
-              "Solo el 5% ve el cambio a la primera. ¿Y tú?",
+              "Una imagen parpadea y algo cambia: ¿lo ves a la primera?",
               f"Detecta el cambio: {n} pruebas de atención",
               "Una figura cambia en cada reto. ¿La ves?")
     descs = ("Una imagen parpadea y algo cambia en ella. ¿Puedes verlo? 👀\n\n"
-             "👇 Comenta en qué fila y columna estaba el cambio en el último reto.",
+             "¿En qué fila y columna estaba el cambio en el último reto?",
              f"{n} retos de atención. En cada uno, una sola figura cambia. 🔍\n\n"
-             "👇 Escribe cuántos cambios encontraste antes de la respuesta (0 a " + str(n) + ").",
+             f"¿Cuántos cambios encontraste antes de la respuesta (0 a {n})?",
              "Tu cerebro ignora lo que no espera. ¿Qué cambió? 🧠\n\n"
-             "👇 Dime qué cambió en el último reto: color, tamaño, giro o desapareció.")
+             "¿Qué cambió en el último reto: color, tamaño, giro o desapareció?")
     return titles, descs, []
 
 
@@ -235,11 +235,11 @@ def _memory(sc, tl):
               f"{n} rondas, 3 segundos para memorizar. ¿Cuántas aciertas?",
               "Memoriza, parpadea y encuentra la diferencia")
     descs = ("Tienes 3 segundos para memorizar. Luego la pantalla se apaga y algo cambia. 🧠\n\n"
-             "👇 Comenta qué figura cambió en la última ronda (fila y columna).",
+             "¿Qué figura cambió en la última ronda (fila y columna)?",
              f"{n} rondas de memoria visual. Cada una con más cosas que recordar. 👀\n\n"
-             f"👇 ¿Cuántas rondas acertaste, de 0 a {n}? Cuéntamelo.",
-             "Tu memoria te engaña más de lo que crees. ¿Qué cambió? 🔍\n\n"
-             "👇 Escribe tu respuesta antes de ver la solución.")
+             f"¿Cuántas rondas acertaste, de 0 a {n}?",
+             "Tu memoria engaña más de lo que parece. ¿Qué cambió? 🔍\n\n"
+             "Piensa tu respuesta antes de ver la solución.")
     return titles, descs, []
 
 
@@ -247,60 +247,60 @@ def _stroop(sc, tl):
     n = len(sc.acts)
     titles = ("Efecto Stroop: di el color de la tinta, no la palabra",
               f"{n} rondas que confunden a tu cerebro: ¿cuántas fallas?",
-              "Lee el color, no la palabra. Casi nadie lo logra sin fallar",
+              "Lee el color, no la palabra: más difícil de lo que parece",
               "Test Stroop: tu cerebro contra tus ojos")
     descs = ("Di en voz alta el COLOR de la tinta, no lo que dice la palabra. 🎨\n\n"
-             "👇 Comenta cuántas palabras fallaste en la última ronda.",
+             "¿Cuántas palabras fallaste en la última ronda?",
              f"{n} rondas de palabras de colores que no coinciden con su tinta. 🧠\n\n"
-             f"👇 Escribe cuántas rondas hiciste sin equivocarte (0 a {n}).",
+             f"¿Cuántas rondas hiciste sin equivocarte (0 a {n})?",
              "Tu cerebro lee más rápido de lo que ve. ¿Podrás ignorar la palabra? 👀\n\n"
-             "👇 Cuéntame tu puntaje y reta a alguien a superarlo.")
+             "¿Cuál fue tu mejor ronda?")
     return titles, descs, []
 
 
 def _math(sc, tl):
     n, q = len(sc.acts), sc.acts[0].question
-    titles = (f"{q} Solo 1 de cada 10 acierta",
+    titles = (f"{q} Tiene truco",
               f"Reto de cálculo: {n} operaciones con trampa. ¿Cuántas aciertas?",
-              "El orden de las operaciones engaña a casi todos. ¿Y a ti?",
+              "El orden de las operaciones importa: ¿lo aplicas bien?",
               f"{q} Sin calculadora")
     descs = ("Operaciones con trampa. El orden importa. 🔢\n\n"
-             "👇 Comenta tu resultado de la última operación SIN calculadora. ¡Gana quien acierte!",
+             "¿Qué resultado te sale en la última operación, sin calculadora?",
              f"{n} operaciones. En cada una hay un resultado «obvio» que es incorrecto. 🧠\n\n"
-             f"👇 Escribe cuántas acertaste (0 a {n}) y qué resultado diste en la primera.",
-             "Muchos se equivocan por hacer las cuentas de izquierda a derecha. 😅\n\n"
-             "👇 ¿Cuál fue tu respuesta? Cuéntamelo en los comentarios.")
+             f"¿Cuántas acertaste (0 a {n})?",
+             "Resolver las cuentas de izquierda a derecha es la trampa más habitual. 😅\n\n"
+             "¿Cuál fue tu respuesta a la primera?")
     return titles, descs, []
 
 
 def _sequence(sc, tl):
     n, q = len(sc.acts), sc.acts[0].question
     titles = (f"{q}", f"{n} secuencias numéricas: ¿cuántas adivinas?",
-              "Test de lógica: ¿qué número sigue? Solo 1 de cada 5 acierta",
+              "Test de lógica: ¿qué número sigue? Busca la regla",
               "¿Ves el patrón? Completa la secuencia")
     descs = ("Cada secuencia sigue una regla distinta. ¿Puedes encontrarla? 🧩\n\n"
-             "👇 Comenta qué número sigue en la última secuencia.",
+             "¿Qué número sigue en la última secuencia?",
              f"{n} secuencias, cada vez más difíciles. 🧠\n\n"
-             f"👇 Escribe cuántas lograste resolver (0 a {n}) y cuál te costó más.",
+             f"¿Cuántas lograste resolver (0 a {n})? ¿Cuál te costó más?",
              "Los números esconden un patrón. ¿Lo ves antes de que acabe el tiempo? ⏱️\n\n"
-             "👇 Dime tu respuesta de la secuencia 3 y etiqueta a quien sea bueno en lógica.")
+             "¿Cuál es la regla de la secuencia 3?")
     return titles, descs, []
 
 
 def _riddle(sc, tl):
-    """El primer acertijo va en el titulo y se pide la respuesta: es lo que mas comentarios genera."""
+    """El primer acertijo va en el titulo; la solucion llega al final de cada uno."""
     n, q = len(sc.acts), sc.acts[0].question
     short = q if len(q) <= 70 else f"{q[:66].rsplit(' ', 1)[0]}..."
     titles = (short, f"Acertijo: {short}", f"{short} (la respuesta, al final)",
-              f"{n} acertijos y preguntas trampa: ¿cuántos aciertas?", "Solo 1 de cada 10 resuelve estos acertijos a la primera")
+              f"{n} acertijos y preguntas trampa: ¿cuántos aciertas?", "Acertijos con trampa: ¿los resuelves a la primera?")
     descs = (f"Empezamos con este: «{short}» 🧩\n\n"
-             "👇 Escribe tu respuesta ANTES de ver la solución y cuéntame si acertaste.",
+             "Piensa tu respuesta ANTES de ver la solución.",
              f"{n} acertijos. Algunos son más fáciles de lo que parecen. 😏\n\n"
-             f"👇 Escribe cuántos acertaste (0 a {n}) y cuál te sorprendió.",
-             "Tu primera respuesta suele ser la equivocada. 🤔\n\n"
-             f"👇 ¿Qué respondiste a «{short}»? Cuéntamelo en los comentarios.",
+             f"¿Cuántos acertaste (0 a {n})? ¿Cuál te sorprendió?",
+             "La primera respuesta que se te ocurre no siempre es la correcta. 🤔\n\n"
+             f"¿Qué responderías a «{short}»?",
              "Piensa antes de responder: algunos son preguntas trampa. 🧠\n\n"
-             "👇 Comenta tu respuesta al último acertijo (sin hacer trampa).")
+             "¿Cuál fue tu respuesta al último acertijo?")
     return titles, descs, ["Acertijos: " + " | ".join(f"{a.index + 1}) {a.question} -> {a.answer}" for a in sc.acts)]
 
 
@@ -309,13 +309,13 @@ def _cups(sc, tl):
     titles = (f"¿En qué vaso está la bola? {n} rondas, cada vez más rápido",
               "El juego de los vasos: ¿puedes seguir la bola hasta el final?",
               f"Sigue la bola sin parpadear: ¿cuántas de {n} aciertas?",
-              "Tus ojos contra los vasos. Casi nadie llega a la última ronda")
+              "Tus ojos contra los vasos: ¿llegas a la última ronda?")
     descs = (f"{n} rondas del juego de los vasos y cada una es más rápida. 🥤\n\n"
-             "👇 Escribe 1, 2 o 3 en los comentarios ANTES de que termine cada ronda y mira si acertaste.",
+             "¿En qué vaso estaba la bola antes de que terminara cada ronda?",
              "Sigue la bola con los ojos, sin pausar. Al final de cada ronda se levanta el vaso. 👀\n\n"
-             f"👇 Cuéntame: ¿cuántas de las {n} rondas acertaste?",
+             f"¿Cuántas de las {n} rondas acertaste?",
              "Tu cerebro cree que sigue la bola... y se pierde. 🧠\n\n"
-             "👇 Comenta en qué ronda la perdiste por primera vez.")
+             "¿En qué ronda la perdiste por primera vez?")
     return titles, descs, ["Rondas: " + "; ".join(f"{a.index + 1}) {a.answer}" for a in sc.acts)]
 
 
@@ -324,13 +324,13 @@ def _simon(sc, tl):
     titles = (f"Test de memoria: recuerda el orden de {n} secuencias de luces",
               "¿Recuerdas el orden? Memoria tipo Simón",
               f"Mira, memoriza y responde: ¿cuántas de {n} secuencias aciertas?",
-              "Solo el 1% recuerda la última secuencia. ¿Y tú?")
+              "Memoria de secuencias: ¿hasta cuál llegas?")
     descs = (f"{n} secuencias de luces, cada vez más largas. Memoriza el orden y responde. 🔴🟢🔵🟡\n\n"
-             f"👇 Comenta cuántas de las {n} acertaste (0 a {n}). ¿Hasta qué secuencia llegaste?",
+             f"¿Cuántas de las {n} acertaste (0 a {n})? ¿Hasta qué secuencia llegaste?",
              "Mira cómo se iluminan los pads y memoriza el orden. La pregunta llega al final. 🧠\n\n"
-             "👇 Escribe tu respuesta a la última secuencia antes de ver la solución.",
+             "Piensa tu respuesta a la última secuencia antes de ver la solución.",
              "Tu memoria de trabajo, al límite. ⏱️\n\n"
-             f"👇 ¿Cuántas acertaste de {n}? Etiqueta a quien tenga mejor memoria.")
+             f"¿Cuántas acertaste de {n}?")
     return titles, descs, ["Secuencias: " + "; ".join(f"{a.index + 1}) {a.answer}" for a in sc.acts)]
 
 
@@ -339,13 +339,13 @@ def _digits(sc, tl):
     titles = (f"¿Encuentras el número distinto? {n} retos, cada vez más parecidos",
               "Todos son iguales menos uno: encuéntralo antes de que acabe el tiempo",
               f"Test de vista: {n} números escondidos entre dígitos casi idénticos",
-              "Solo el 1% encuentra el último número distinto")
+              "Encuentra el número distinto en cada reto")
     descs = (f"En cada reto hay UN número distinto entre muchos casi iguales, y cada vez se parecen más. 🔢\n\n"
-             f"👇 Comenta en qué segundo lo encontraste en el último reto. ¿Cuántos de {n} acertaste?",
+             f"¿En qué segundo lo encontraste en el último reto? ¿Cuántos de {n} acertaste?",
              "Mira bien: parecen todos iguales, pero uno es diferente. 👀\n\n"
-             "👇 Escribe el número que encontraste en el último reto.",
+             "¿Qué número encontraste en el último reto?",
              f"{n} retos de vista de águila. 🦅\n\n"
-             "👇 Dime tu puntaje (0 a " + str(n) + ") y etiqueta a alguien que tenga mejor vista que tú.")
+             f"¿Cuál fue tu puntaje (0 a {n})?")
     return titles, descs, ["Respuestas: " + _answers_text(sc)]
 
 
@@ -356,15 +356,15 @@ def _loop(sc, tl):
         kind = f"anillos de {g['pl']} orbitando"
     P, D = sc.loop_period, tl.spec.duration
     titles = ("Este bucle no tiene principio ni final. ¿Dónde empieza?",
-              f"Bucle infinito: {kind}. Imposible dejar de mirar",
+              f"Bucle infinito: {kind}. Difícil dejar de mirar",
               "Intenta encontrar el momento exacto donde se repite",
               "Mira fijamente: este video nunca termina")
     descs = (f"Un bucle perfecto de {kind}. Se repite cada {P:.0f} segundos y el final conecta con el inicio sin saltos. ♾️\n\n"
-             "👇 Comenta cuántas veces lo repetiste antes de darte cuenta.",
-             f"¿Puedes ver dónde empieza y dónde termina? Casi nadie lo logra. ({kind})\n\n"
-             "👇 Dime cuántas veces seguidas lo viste. Sé honesto. 😅",
+             "¿Cuántas veces lo repetiste antes de darte cuenta?",
+             f"¿Puedes ver dónde empieza y dónde termina? Es más difícil de lo que parece. ({kind})\n\n"
+             "¿Cuántas veces seguidas lo viste? 😅",
              f"Mira esto una vez... y verás cómo se repite solo. Son {D:.0f} segundos de {kind} sin cortes.\n\n"
-             "👇 ¿Cuántas veces lo repetiste? Escribe el número.")
+             "¿En qué segundo notaste el empalme?")
     extra = [f"Tipo de bucle: {kind}", f"Periodo: {P:.1f}s ({sc.loop_k} vueltas por video)"]
     return titles, descs, extra
 
@@ -378,11 +378,11 @@ def _mix(sc, tl):
               f"Mira bien: {names[0]}, {names[1]} y {n - 2} retos más",
               f"¿Cuántos de estos {n} retos logras resolver?")
     descs = (f"{n} retos distintos en un solo video: {listing}. 🧠\n\n"
-             f"👇 Comenta tu puntaje de 0 a {n} y cuál fue el más difícil.",
+             f"¿Cuál fue tu puntaje de 0 a {n}? ¿Cuál fue el más difícil?",
              f"Hoy: {listing}. Cada reto es diferente y la respuesta llega al final de cada uno. 👀\n\n"
-             f"👇 ¿Cuántos acertaste? Escríbelo y reta a un amigo a superarte.",
-             f"Un reto nuevo cada pocos segundos. Sin trampas. ⏱️\n\n"
-             f"👇 Dime tu puntaje (0 a {n}) y etiqueta a quien crea que sacaría más.")
+             "¿Cuántos acertaste?",
+             "Un reto nuevo cada pocos segundos. Sin trampas. ⏱️\n\n"
+             f"¿Cuántos de los {n} resolverías sin pausar?")
     extra = ["Retos: " + "; ".join(f"{a.index + 1}) {TYPES[a.type].menu}" for a in sc.acts)]
     return titles, descs, extra
 
@@ -448,8 +448,6 @@ ACTION = {
     "cups": ("seguir la bola", "rondas de vasos"), "simon": ("recordar el orden de las luces", "secuencias de luces"),
     "digits": ("encontrar el número distinto", "retos de números"), "mix": ("superar estos retos", "mini-retos"),
 }
-AI_LABEL_NOTE = ("Activa «Etiqueta de IA» al publicar: la voz del video es sintética y Meta pide declarar el audio realista "
-                 "creado digitalmente (puede penalizar si no se declara).")
 
 
 def _generic_titles(sc) -> list:
@@ -458,10 +456,8 @@ def _generic_titles(sc) -> list:
         return []
     act, plural = ACTION[sc.mode]
     n = len(sc.acts)
-    rng = random.Random(sc.seed ^ 0x7171)
-    p = rng.choice((1, 3, 5, 10))
-    return [f"Solo el {p}% logra {act}", f"{n} {plural}: ¿cuántos aciertas?", f"¿Puedes {act}? El último casi nadie lo logra",
-            f"Nadie acierta los {n} {plural} a la primera", f"¿Eres capaz de {act}? Compruébalo en {n} pruebas",
+    return [f"¿Puedes {act}? Hazlo con calma", f"{n} {plural}: ¿cuántos aciertas?", f"¿Puedes {act}? El último es el más difícil",
+            f"{n} {plural}, cada uno más difícil que el anterior", f"¿Eres capaz de {act}? Compruébalo en {n} pruebas",
             f"{n} {plural} para poner a prueba tu cerebro"]
 
 
@@ -491,7 +487,7 @@ def _compose(sc: Scene, tl: Timeline, rng: random.Random, avoid) -> dict:
     if not loop and rng.random() < 0.5:
         seo += " " + copy_es.make_seo_tail(rng)
     desc = head + "\n" + seo + (("\n\n" + rest) if rest else "")
-    footer = copy_es.make_share(rng) + "\n" + copy_es.make_follow(rng)
+    footer = copy_es.make_closer(rng)
     tags = copy_es.make_tags(rng, sc.mode, [a.type for a in sc.acts])
     pinned = copy_es.make_pinned(rng, n, loop)
     paste = f"{title}\n\n{desc}\n\n{footer}\n\n{' '.join(tags)}"      # exactamente lo que se pega en la publicacion
@@ -528,12 +524,11 @@ def write_metadata(path: Path, sc: Scene, tl: Timeline, video_name: str, avoid=(
         "=== FIN DEL TEXTO A PEGAR ===\n\n"
         f"ARCHIVO: {video_name}\n\n"
         f"TIPO DE VIDEO: {MODE_LABEL[sc.mode]}\n\n"
-        f"ANTES DE PUBLICAR: {AI_LABEL_NOTE}\n"
         f"Portada: sube {stem}_portada.jpg como miniatura del Reel (lleva el gancho a pantalla completa).\n\n"
         "VARIABLES (control interno):\n" + "\n".join(f"  - {v}" for v in variables) + "\n\n"
         f"TÍTULO SUGERIDO:\n{post['title']}\n\n"
         f"DESCRIPCIÓN (COPY):\n{post['desc']}\n\n{post['footer']}\n\n"
-        f"COMENTARIO FIJADO (publícalo tú justo después y fíjalo: los comentarios sencillos de una cifra son los que más se responden):\n"
+        f"NOTA PARA FIJAR (opcional; informa, no pide nada):\n"
         f"{post['pinned']}\n\n"
         f"HASHTAGS:\n{' '.join(post['tags'])}\n"
     )
